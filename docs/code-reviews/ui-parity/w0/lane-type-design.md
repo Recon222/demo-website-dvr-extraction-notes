@@ -1,249 +1,175 @@
-# Lane: type-design - Wave 0 (U0), PR #39 `feat/uiparity-u0` @ `7099e54`
+# Lane: type-design - Wave 0 (U0), PR #39
 
-Mode: **code review**. Base: `master`. Read in the shared worktree `worktrees/u0-phase`;
-every probe ran in a private worktree (`probe/w0-types` off `7099e54`), torn down via
-`tools/worktree-remove.ps1` - *"unlinked 549 junction(s) in 2 pass(es)"*, `.pnpm` 240 -> 240, exit 0.
+## Round 1 (fix delta)
 
-Single question: **do the types in this change enforce the invariants the code depends on, or do
-they let invalid states through?**
+Warm seat. Phase branch `feat/uiparity-u0` @ `15e5a6f`, delta `10553c8..15e5a6f`. Authority: the
+fix-mapping comment on PR #39. Read the delta only, plus the lines each fix now depends on.
+Probes ran in `probe/w0d-types-f2` (own worktree off `15e5a6f`), torn down via
+`tools/worktree-remove.ps1` - "unlinked 549 junction(s) in 2 pass(es)", `.pnpm` 240 -> 240, exit 0.
 
-Baseline in the probe tree before any mutation: `rm -f tsconfig.tsbuildinfo && pnpm exec tsc
---noEmit --incremental false` -> **EXIT 0**; `node .design-sync/check-rn-parity.mjs` -> **exit 0,
-33/33 anchor rows OK** (the sibling phone repo resolves on this box, so the guard is not skipping -
-the "a skipped test is not a killed mutant" hazard was checked, not assumed).
+Baseline at `15e5a6f` in the probe tree, taken BEFORE any mutation:
+`tsc --noEmit --incremental false` -> **EXIT 0** - `node .design-sync/check-rn-parity.mjs` ->
+**exit 0, 67/67 rows** - the five token suites -> **5 files, 45 passed / 15 todo, exit 0**.
 
----
+### My findings, per the mapping
 
-## What was verified, not assumed (the brief's four direct questions)
-
-### 1. The "ONE key set across both halves" invariant IS type-enforced, in all four directions
-
-`features/demo/ui/tokens/palette.ts:113` derives `PaletteToken = keyof typeof dark` and `:166`
-constrains the other half with `as const satisfies Record<PaletteToken, string>`. The docblock at
-`:14-17` claims this is a compile error "in both directions". **Probed all four, one mutation each:**
-
-| # | Mutation | Result |
+| F-ID | My r0 finding | Status |
 |---|---|---|
-| 1 | drop `linkHover` from `light` (`:156`) | **KILLED** - `TS1360 ... Property 'linkHover' is missing`, EXIT 2 |
-| 2 | add `probeOnlyKey` to `light` only | **KILLED** - `TS2353 ... 'probeOnlyKey' does not exist in type Record<...>`, EXIT 2 |
-| 3 | add `probeDarkOnly` to `dark` only | **KILLED** - `PaletteToken` widens, `light` fails the constraint, EXIT 2 |
-| 4 | drop `linkHover` from `dark` only | **KILLED** - `PaletteToken` narrows, `light`'s key becomes excess, EXIT 2 |
+| F6 | `flattenOver` zero-grounds arm returns `top` uncomposited | **FIXED** |
+| F7 | `ACCENT_FROM` re-types `colors.primaryDark` with no link | **FIXED** |
+| F8 | dead `T.borderSoft` / `T.radius` | **FIXED** |
+| F9 | `T.rowH` unguarded duplicate of `touchTarget.min` (I reported it as disclosed-awaiting-ledger; the author refused the deferral and fixed it) | **FIXED** |
+| - | my r0 LOW on the `scheme: 'any'` sentinel does not appear in the mapping | not confirmed or disclaimed - see Residual |
 
-Restore proved byte-identical after each (`git checkout --` plus an empty `git diff`). The author's
-claim holds exactly as written, including the asymmetry the foundation report's successor note item 3
-warns about (`dark` is the definer, `light` the constrained half). This is the strongest type work in
-the PR and it needs no change.
+**F6 - FIXED, both clauses.** `scale.ts:177` is now
+`flattenOver(top: string, ground: string, ...rest: string[])`, so the empty-grounds call is a
+compile error (TS2556) rather than a plausible wrong answer - the shape I asked for, and the
+docblock at `:171-173` states the reason. Clause 2, which I said a type could not express, was
+closed at the boundary instead: `palette-contrast.test.ts:112-117` throws
+"the bottom ground must be opaque" when the last layer's alpha is not 1, and `:281-284` pins it
+with **my exact probe input** - `contrast('#ffffff', ['rgba(0, 0, 0, 0.1)'])`, the call that
+measured 21.00 in round 0, now asserted to throw. `flatten()` also handles the one-entry stack
+explicitly (`:126-127`) instead of routing it through a helper that no longer accepts it. That is
+a better answer than the runtime assert I proposed, because it sits where the ground stacks are
+written. Verified green in the baseline run above.
 
-### 2. A malformed drift-guard anchor is caught LOUDLY, not silently
+**F7 - FIXED, exactly as probed.** `glass-tokens.ts:42`:
+`const ACCENT_FROM = '#1F6B99' satisfies typeof colors.primaryDark`. This is the change I probed in
+round 0 (tsc clean with it; TS1360 when `palette.ts`'s `primaryDark` is mutated one-sided; drift
+guard unaffected because `readConst`'s VALUE alternation takes the quoted literal). Re-confirmed
+at `15e5a6f`: `tsc` **EXIT 0** and the guard reads **67/67, exit 0**, so the anchor still resolves
+through the new form. The comment at `:30-36` records why `= colors.primaryDark` is not an option
+and why `satisfies` is - the distinction my round-0 finding turned on. `ACCENT_TO` correctly stays
+plain (no palette sibling).
 
-Probe 9: appended `'linkHoverTypo'` to `PALETTE_KEYS` (`.design-sync/check-rn-parity.mjs:238-254`).
-**KILLED** - both rows report `PARSE-FAILED (field not found: linkHoverTypo)`, the standalone runner
-prints "the guard is BLIND there" and exits **1**, and *the other 33 rows still resolved* (U0.0's
-per-anchor degrade doing its job). `checkParity()`'s `drift` set includes parse failures by
-construction (`:336`), and `rn-token-parity.test.ts:74-84` asserts `parseFailed` empty separately
-from `drift` empty. The `.mjs` file carries no types, but the failure mode the brief asked about - a
-malformed anchor going *silently* PARSE-FAILED - does not exist: PARSE-FAILED is itself the alarm.
-The complementary hazard (a reader that resolves to the *wrong* region and compares a block to
-itself) is closed by `rn-token-parity.test.ts:103-128`, which asserts every anchored key's light and
-dark reads differ. That pair is well designed.
+**F8 - FIXED, no orphaned consumers.** Both keys are gone from `input-theme.ts`. Re-measured at
+`15e5a6f` across `features/`, `app/` and `components/`: `T.borderSoft` -> **0 references**,
+`T.radius` -> **0 references**. `tsc` exit 0 confirms nothing was typed against them. The comment
+defending the hand-written `GLASS.borderSoft` was also corrected (`glass-tokens.ts:59-62`): it now
+names U1.1 as the owner that derives it from `GLASS_TIER.dark.card` and states the byte-exact-pin
+reason for not hand-deriving it in the interim - the accurate version of the claim I flagged as
+wrong ("CSS has no alpha-on-hex", when `withAlpha` shipped in the same PR).
 
-### 3. `T`'s aliases: 8 typed re-exports, 10 fresh literals
-
-`input-theme.ts:19-45`. Genuinely re-exported: `bg`, `raised`, `border`, `text`, `textMute`,
-`textFaint`, `primary`, `error` - and `palette.test.ts:151-166` pins that mapping at runtime with
-`satisfies Record<string, PaletteToken>`, so a re-point reddens. The other ten stayed literals; two
-of them are dead keys (finding L1) and one (`rowH`) is disclosed by the implementer (below).
-
-### 4. Numeric branding for pt/px in `scale.ts` - considered and DROPPED
-
-No mix-up exists in the code under review. Every `scale.ts` value is a unitless number consumed as a
-`CSSProperties` number (px), the guard's one cross-unit comparison (`touchFloor`) is explicitly
-documented at `check-rn-parity.mjs:329` as scheme- and unit-invariant geometry, and the persona's
-"no brands exist here" rule applies. Not a finding.
-
----
-
-## MEDIUM
-
-```
-[MEDIUM] `flattenOver`'s "the last ground is opaque" invariant is prose-only, and the
-         zero-grounds arm silently returns an uncomposited colour
-Type: flattenOver(top: string, ...grounds: string[]): string
-File: features/demo/ui/tokens/scale.ts:151-165
-Invariant violated / permitted invalid state: the docblock (`:138-140`, `:149`) states that the last
-  ground is TREATED AS OPAQUE and that its alpha is discarded, and the foundation report's successor
-  note item 6 repeats it. The signature enforces neither half. `...grounds: string[]` admits ZERO
-  grounds, in which case `:152` returns `top` unchanged - a translucent colour handed back as if it
-  had been flattened.
-Construction site: features/demo/ui/__tests__/palette-contrast.test.ts:98-102 - `flatten(stack)`
-  destructures `const [top, ...grounds] = stack` and spreads, so any one-element ground stack reaches
-  the zero-grounds arm. `contrast(fg, grounds)` at `:109-114` calls it on every row.
-Downstream consequence / MUTATION PROBE 8: mutated copy = the canonical
-  `features/demo/ui/__tests__/palette-contrast.test.ts`, in a private probe worktree (jsdom; no
-  motion path involved). Added one case asserting
-  `contrast('#ffffff', ['rgba(0, 0, 0, 0.1)'])` equals `contrast('#ffffff', ['#000000'])`.
-  Result: **PASSED, exit 0** - a 10%-opacity black ground measures 21.00, identical to pure black.
-  The alpha is dropped entirely and the file reports a confident, wrong ratio. This is precisely the
-  failure the file's own `:191` note ("both stacks must bottom out at `background` and never at a
-  glass stop") and `:94-96` ("do not remove that line") exist to prevent - and it is the one class
-  `stack.forEach(parse)` cannot catch, because `rgba(0, 0, 0, 0.1)` parses fine. U1.1 hand-writes
-  nine ground stacks per scheme against this helper (`:168-181`), where a stack ending on a glass
-  stop instead of `background` is a one-token edit away.
-Fix: make the first ground a required parameter - `flattenOver(top: string, ground: string,
-  ...rest: string[])`. That makes the empty case a compile error with no new machinery, matching the
-  house habit of making an impossible state unrepresentable (`RetentionView`,
-  `engine/logic/retention.ts`). The alpha half cannot be expressed in a type; a one-line
-  `parseColor(last)[3] === 1` assert in `flattenOver`, or in the contrast test's `flatten`, is the
-  boundary guard for it. Restore verified byte-identical.
-```
-
-```
-[MEDIUM] `ACCENT_FROM` re-types `colors.primaryDark` instead of deriving it - the only thing
-         linking them is a guard that reports green when the phone repo is absent
-Type: const ACCENT_FROM / ACCENT_TO
-File: features/demo/ui/glass-tokens.ts:34-35 (and the token it duplicates,
-      features/demo/ui/tokens/palette.ts:47)
-Invariant violated / permitted invalid state: the phone models the CTA's top stop as a REFERENCE -
-  `PrimaryButtonGradient.dark = [Colors.dark.primaryDark, '#17527A']` - and this PR's own comment at
-  `glass-tokens.ts:31-32` records that. The demo re-types the hex, so `#1F6B99` now has two
-  independent web-side definitions with no structural link. Nothing inside the demo enforces
-  `ACCENT_FROM === colors.primaryDark`: `palette.test.ts:59` pins one to a literal and
-  `glass-tokens.test.ts` pins the other to a literal, and neither compares them.
-Construction site: the realistic path is the phone re-basing `primaryDark`. The drift guard would
-  redden on two rows (`primaryDark.*` and `gradientTop.dark`, since the RN side RESOLVES the
-  reference via `rnRef('dark')` at `check-rn-parity.mjs:324`), but that whole suite is
-  `it.skipIf(!rnAvailable())` - a hazard `rn-token-parity.test.ts:24-30` documents in its own words:
-  "a CI without the phone repo reports green regardless of drift." On such a run, updating
-  `palette.ts` alone leaves the CTA gradient's top stop on the retired colour with a fully green suite.
-Downstream consequence: `GLASS.accentFrom`, `GLASS.gradientAccent`, `T.accentFrom`, `glassBtnPrimary`
-  and `ExportCaseCard.tsx:127,129` (the expanded-card border and its `withAlpha` glow) would all
-  paint a colour the palette no longer contains - and the contrast rows at
-  `palette-contrast.test.ts:307-317` measure `onPrimary` against `GLASS.accentFrom`, so the AA claim
-  would move WITH the stale value rather than fail on it. That is the same tautology the file's own
-  `:35-39` deep-import rule and its `:350-356` DangerFill note exist to forbid.
-Fix: `const ACCENT_FROM = '#1F6B99' satisfies typeof colors.primaryDark`. PROBED, three ways:
-  (a) with the `satisfies` added and nothing else changed, `tsc --noEmit` -> **EXIT 0**;
-  (b) with it in place, mutating `palette.ts:47` to `'#1F6B9A'` -> **KILLED**,
-      `glass-tokens.ts(34,31): error TS1360: Type '"#1F6B99"' does not satisfy the expected type
-      '"#1F6B9A"'`, EXIT 2;
-  (c) the drift guard is UNAFFECTED - `readConst`'s `VALUE` alternation takes the quoted literal and
-      ignores the trailing `satisfies`. Verified by running the guard with the fix in place:
-      **33/33 OK, exit 0, `gradientTop.dark RN=#1f6b99 web=#1f6b99`**.
-  So the comment at `glass-tokens.ts:31-32` correctly rules out `= colors.primaryDark`, but does NOT
-  rule out the `satisfies` link - the constraint it cites is narrower than the conclusion it draws.
-  Precedent: derived state is not stored (`ScopeRetention`, `engine/logic/retention.ts`); the phone
-  itself models this as a dereference. `ACCENT_TO` has no palette sibling and stays a plain literal.
-  Restore verified byte-identical after each probe.
-```
-
-## LOW
-
-```
-[LOW] `T.borderSoft` and `T.radius` are DEAD keys that were re-based rather than deleted - and
-      `borderSoft` hard-codes a dark value with a light sibling, which D2-amended forbids
-Type: T
-File: features/demo/ui/inputs/input-theme.ts:25 (`borderSoft: 'rgba(28,78,132,0.5)'`), :43 (`radius: 12`)
-Invariant violated / permitted invalid state: `rgba(28,78,132,0.5)` is `colors.border` (`#1c4e84`) at
-  50%, and `colors.border` HAS a light sibling (`#e5e7eb`, `palette.ts:138`). D2-amended's ratified
-  text (matrix section OWNER RATIFICATION, plan section 3 D2) reads verbatim: **"Nothing hard-codes a
-  dark value that has a light sibling."** `T.radius: 12` likewise duplicates `radius.lg` from the
-  scale seam this same PR shipped (`scale.ts:53`).
-Construction site: neither key is read. Measured across `features/` and `app/`: `T.borderSoft` -> **0
-  readers**, `T.radius` -> **0 readers**. (`GLASS.borderSoft`, the live twin at `glass-tokens.ts:52`,
-  is the same violation but IS owned - plan U1.1 derives `GLASS.gradientCard` / `gradientPanel` /
-  `borderSoft` / `borderAccent` from the two-half `GLASS_TIER`, whose `dark.card.border` is exactly
-  this value. Out of scope for this PR; not filed.)
-Downstream consequence: none today - that is why this is LOW and not MEDIUM. The cost is that the D2
-  violation is invisible: it survives the `palette.test.ts` `RETIRED` sweep, the
-  `glass-tokens.test.ts` `BANNED` list and the drift guard, and the next reader of `input-theme.ts`
-  inherits a key that looks live. `input-theme.ts` is owned only by U0.1 / U3.1 (status) / U4.4
-  (scrim) - no package owns `borderSoft` or `radius`, so nothing will find them.
-Fix: delete both keys. If they are kept as vocabulary for the picker library, derive them -
-  `borderSoft: withAlpha(colors.border, 0.5)` (`withAlpha` shipped in this PR at `scale.ts:121` and is
-  already used this way at `ExportCaseCard.tsx:129`) and `radius: radius.lg`. Honest cost of the
-  derived spelling: `withAlpha` emits SPACED `rgba(28, 78, 132, 0.5)`, so a byte-exact shape pin and
-  the `BANNED` entry for the compact form would need rewriting in the same commit - the foundation
-  report's successor note item 7 already states this.
-```
-
-```
-[LOW] The guard's anchor row uses a bare-`string` `scheme` with a magic `'any'` sentinel outside
-      `SCHEMES`, and the row shape is re-declared in the test
-Type: Anchor
-File: features/demo/ui/inputs/__tests__/rn-token-parity.test.ts:17; the rows it describes at
-      .design-sync/check-rn-parity.mjs:298-331; `SCHEMES` at :257
-Invariant violated / permitted invalid state: `SCHEMES` is `light` plus `dark` - the id space - but
-  the `touchFloor` row at `:330` carries `scheme: 'any'`, a third value belonging to no half. The test
-  types it `scheme: string`, so nothing links the field to `SCHEMES`.
-Construction site: `.design-sync/check-rn-parity.mjs:358` - the drift report interpolates the scheme
-  into `RN Colors.<scheme> = <value>`, which renders as `RN Colors.any = 44` if the touch floor ever
-  drifts. Reachable the moment the phone changes `Layout.ts`'s touch floor.
-Downstream consequence: a misleading failure message on the one anchor that is NOT a colour, in a
-  guard whose entire value is naming exactly what drifted. No behavioural impact.
-Fix: either give the row `scheme: null` and branch the message, or key the message off the label
-  (which already reads `touchFloor`). The `.mjs` file cannot express the union; that is the same
-  test-over-type trade `deferred.md` section 27 records as acceptable for a static single-author
-  table, so the bare `string` in the test's `Anchor` is not filed separately.
-```
+**F9 - FIXED, and pinned structurally.** `input-theme.ts:43` is `rowH: touchTarget.min`; the
+literal type stays 44 because `touchTarget` is `as const`, so `TimeWheel.tsx:8` is unchanged.
+`scale.test.ts:40-41` pins BOTH the value and the source text (a regex requiring
+`rowH: touchTarget.min`) - the same structural idiom F5 introduced for the `T` aliases, which is
+what stops a future re-typed 44 from passing a value-only pin.
 
 ---
 
-## Disclosed by the implementers, awaiting the ledger - NOT re-filed as findings
+## NEW - HIGH (fix-introduced, in F2's blast radius)
 
-Both are correct calls with a named reason. Per CLAUDE.md the ledger entry must land **before merge**,
-and neither is in `docs/code-reviews/deferred.md` today (grepped: 6,240 lines, zero hits for
-`PrimaryButtonGradient`, `uiparity`, `U0.5` or `light accent`). What is flagged here is the missing
-ledger entry, not the code.
+```
+[HIGH] F2's membership pin - the one assertion that makes the anchor table non-tautological -
+       is gated behind `it.skipIf(!rnAvailable())`, and needs nothing from the phone repo
+Type: PALETTE_KEYS (string[], .mjs) and the pin that constrains it
+File: features/demo/ui/inputs/__tests__/rn-token-parity.test.ts:111 (the `it.skipIf`) and
+      :123-126 (the membership assertion inside it);
+      .design-sync/check-rn-parity.mjs:243-249 (the docblock that delegates enforcement to it)
+Invariant violated / permitted invalid state: `PALETTE_KEYS` remains a hand-maintained
+  `string[]` - correctly so; the guard's docblock at `:232-236` reasons that deriving it by
+  parsing `palette.ts` would be self-referential, and I agree. Enforcement therefore rests
+  entirely on `expect([...PALETTE_KEYS].sort()).toEqual(Object.keys(palette.dark).sort())`. The
+  test says so itself at `:118-122`: "This is the only assertion in the file that compares the
+  list to something outside it, so it is the one that makes the other three non-tautological."
+  Both sides of that comparison are LOCAL - a `.mjs` array and a TypeScript module in this repo.
+  It is nevertheless inside a case skipped whenever the sibling phone repo is absent.
+Construction site: any edit to `PALETTE_KEYS` on a machine or CI without the phone checkout.
+Downstream consequence - MUTATION PROBE A / B. Mutated copy: the canonical
+  `.design-sync/check-rn-parity.mjs`, in a private probe worktree. Claimed pin:
+  `rn-token-parity.test.ts:123`.
+  - PROBE A - mutation: PALETTE_KEYS 'link' becomes a duplicate 'card' (the exact mutation the
+    fix's own comment at `:113-117` says the OLD length-based pin survived). Phone repo PRESENT.
+    Result: **KILLED, exit 1**, failing case named
+    "pins every palette key in BOTH scheme halves (D2, amended)". The fix works in this condition.
+  - PROBE B - the SAME single mutation, re-run with the phone repo absent. The scenario was
+    applied by pointing the guard's RN path constant at a non-existent sibling; declared, because
+    it changes a path rather than the logic under test, and it reproduces the deployment
+    condition `rn-token-parity.test.ts:24-30` documents in its own words as "a CI without the
+    phone repo reports green regardless of drift".
+    Result: **SURVIVED, exit 0** - "Tests 5 passed | 6 skipped (11)".
+  - NEGATIVE CONTROL - phone repo absent, PALETTE_KEYS CLEAN: byte-identical outcome,
+    "Tests 5 passed | 6 skipped (11)", exit 0. So the mutation is genuinely invisible in that
+    condition; the skip, not chance, is what hides it.
+  Restore proved: `git checkout --`, `git diff` **0 bytes**, file green again at 11/11.
+  Net effect: F2 correctly widened the table from 15 keys to all 32 and replaced a cardinality
+  pin with a membership pin, but on the default contributor/CI configuration the widened table is
+  protected by nothing at all - a token can be dropped from PALETTE_KEYS, or swapped for a
+  duplicate, with a fully green suite.
+Fix: move that one `expect` out of the gated case. The correct pattern is already in this same
+  delta, three describes above it - F4 put its two `region()` cases in an UNGATED describe at
+  `:69-70` with the comment "Both cases are pure string work - no sibling repo, so they run
+  everywhere, which matters for a guard whose every other case is skipIf." The membership pin is
+  exactly that kind of case. The cardinality line at `:128-130` can follow it; the three
+  assertions that genuinely read the phone stay behind skipIf.
+```
 
-- **`PrimaryButtonGradient` shipped as its DARK ARM ONLY, flattened to two module consts with no
-  scheme discriminant** - `glass-tokens.ts:34-35`. The phone's light pair has no web token,
-  `palette-contrast.test.ts:324-326` carries the row as an `it.todo` titled UNOWNED / proposed U2.2,
-  and `check-rn-parity.mjs:316-320` explains why anchoring it would violate plan section 6.6 gate 1.
-  The U0.5 report section 7 P-1 states the D2 violation in the author's own words. **This is the one
-  place the "flipping the consumed scheme is a one-site change" claim is structurally false AND
-  unowned**, so the ledger entry needs an owner and a trigger, not just a note.
-- **`T.rowH: 44` is now an unguarded duplicate of `touchTarget.min`** - `input-theme.ts:44`. U0.4 moved
-  the `touchFloor` anchor off `T.rowH` onto `scale.ts` (`check-rn-parity.mjs:267-269`), leaving the
-  literal behind with one reader (`TimeWheel.tsx:8`). The U0.4 report P-1 proposes the deferral with
-  owner U2.1 and a trigger. Correct as disclosed.
+## NEW - LOW
 
-The three per-scheme records the brief asked about - `PrimaryButtonGradient`, `ElevatedEdges`,
-`DangerFill` - are otherwise **not in this diff** (U2.2 owns two of them; `palette.ts:20-31` documents
-all three including the `DangerFill` name-inversion trap, which is the right thing to have written
-down before U2.2 starts). `ColorScheme` (`palette.ts:170`) is exported with zero current consumers; it
-is the discriminant D2 binds those records to, so it is deliberate forward wiring, not speculative
-abstraction. Not filed.
+```
+[LOW] The scheme-invariant exclusion set is stringly typed, in a file that uses the typed idiom
+      one directory over
+Type: SCHEME_INVARIANT
+File: features/demo/ui/inputs/__tests__/rn-token-parity.test.ts:154-155
+Invariant violated / permitted invalid state: `new Set(['onPrimary', 'onError'])` infers
+  `Set<string>`, and the loop is `PALETTE_KEYS.filter((k: string) => !SCHEME_INVARIANT.has(k))`.
+  Nothing ties either to `PaletteToken`. A typo'd exclusion excludes nothing.
+Construction site: the comment at `:149-153` explicitly invites future edits - "Any key added
+  here needs the same justification, in one line" - so the set is designed to grow.
+Downstream consequence: LOW and not MEDIUM because the failure direction is safe: a typo leaves
+  `onPrimary` in the loop, and the light-vs-dark assertion then fails LOUDLY on a key that is
+  `#ffffff` in both halves. The cost is a confusing red (a real token appearing to be a stuck
+  reader) rather than a silent hole. The unsafe direction - excluding a key that is NOT
+  scheme-invariant - is a judgement no type can catch.
+Fix: `new Set<PaletteToken>(['onPrimary', 'onError'])`. `palette` is already imported at `:6` for
+  F2's membership pin, and the sibling file uses the same idiom in this delta -
+  `palette.test.ts:171`, `as const satisfies Record<string, PaletteToken>` for the alias map.
+  One type argument; a typo becomes a compile error instead of a misleading runtime red.
+```
 
-## Out-of-lane observations
+## Residual, not filed
 
-- `palette-contrast.test.ts`'s fifteen `it.todo` rows carry their owning package only in a free-text
-  title, so nothing prevents an unowned todo - and one exists by design (`:324`). A typed row
-  descriptor would be disproportionate machinery for a static, single-author literal (`deferred.md`
-  section 27's accepted precedent), so this is a planning/ownership question for the aggregator, not a
-  type defect. The rows themselves read off `palette` / `GLASS` rather than retyped literals, which is
-  the part that actually matters and is done correctly (`:35-39`).
-- `check-rn-parity.mjs`'s readers are `indexOf` plus regex over source TEXT, comments included.
-  Checked by hand against every key in `PALETTE_KEYS` for the current `palette.ts`: no comment in
-  either region produces a key-colon-value match, and the case-SENSITIVE regex means prose like
-  "Text ramp" cannot collide with `text:`. It holds today; it is fragile to a future docblock that
-  writes a key-colon pair inside a scheme region. `region()` throwing on a missed marker (`:118`) is
-  the right call.
+- `flatten(stack: string[])` (`palette-contrast.test.ts:105`) still accepts an empty array, which
+  now reaches `parsed[parsed.length - 1]` as `undefined` and throws a TypeError at `:113`. That is
+  strictly better than round 0's silently-wrong ratio and remains unreachable from `worst()` /
+  `offenders()`; not worth a required-first-element parameter on a test-file internal.
+- PALETTE_KEYS is still `string[]` rather than `PaletteToken[]`. Correct: the guard is `.mjs` and
+  cannot import the TS module, and the docblock's self-reference argument for keeping the list
+  hand-written is sound. The HIGH above is about WHERE the pin runs, not about typing the array.
+- My round-0 LOW on the `scheme: 'any'` sentinel and the message it produces (`RN Colors.any = 44`)
+  does not appear in the fix-mapping comment. Per reviewer-contract section 7 I neither confirm
+  nor disclaim it; the row still carries `scheme: 'any'` and the report line is unchanged.
+
+## Regression sweep over the fix commits' blast radius
+
+- **parseColor widened** (`scale.ts:85-105`, F6's commit) to accept 4- and 8-digit hex and to
+  anchor the `rgb()` regex at both ends. Return type is unchanged, the alpha pair is normalised
+  to 0-1, and the contrast test's own stricter `parse` (6-digit only, `:62`) is untouched - so
+  the two parsers did not converge and the test still rejects `#fff` as `:238` asserts.
+  `tsc` exit 0.
+- **region() now strips line comments and throws on a missed `before`** (F4). Both change what
+  every reader sees, including F7's `readConst` on the new `satisfies` form. Re-ran the guard at
+  `15e5a6f`: **67/67 OK, exit 0** - no anchor went PARSE-FAILED, so neither change broke a
+  reader. The stripper is line-comments-only and documented as such.
+- **input-theme.ts now imports touchTarget** (F9), joining `GLASS` and `colors`. Import order
+  palette -> scale -> glass-tokens -> input-theme is preserved; `palette.ts` still imports
+  nothing. No cycle; `tsc` exit 0.
+- Full token-suite run at the merged head, before any mutation: **5 files, 45 passed / 15 todo,
+  exit 0.**
 
 ---
 
-## Type Design Summary
-CRITICAL: 0 - HIGH: 0 - MEDIUM: 2 - LOW: 2
-Verdict: **APPROVE with comments**
+## Type Design Summary (Round 1 fix delta)
+CRITICAL: 0 - HIGH: 1 - MEDIUM: 0 - LOW: 1
+Prior-round findings: F6 **FIXED** - F7 **FIXED** - F8 **FIXED** - F9 **FIXED** (0 PARTIAL, 0 UNFIXED)
+Verdict: **REVISE**
 
 | Check | Result |
 |---|---|
-| Canonical homes preserved (no parallel entity declarations) | **yes** - new types live in the new `ui/tokens/` seam; no domain entity re-declared |
-| Discriminated unions well-formed | **n/a** - this diff introduces no tagged union |
-| Exhaustiveness enforced (never-checked switches) | **n/a** - no new `switch` over a union |
-| Correlated state modelled as a union | **n/a** |
-| Id spaces typed (no bare-string registries/keys) | **yes** - `PaletteToken` is the key space and is enforced in BOTH directions (probed 4/4 KILLED) |
-| readonly discipline on shared data | **yes** - `palette`, `spacing`, `radius`, `touchTarget`, `iconSize`, `GLASS`, `T` all `as const`; `TOKEN_MODULES` is a `ReadonlySet`; `RETIRED` / `BANNED` are `ReadonlyArray` |
-| Boundary types honest about untrusted input | **yes** - `parseColor` returns a 4-tuple or `null`, and `flatten` pre-parses every layer; the one gap is the arity, filed MEDIUM |
-| Mutation probes | 9 run - 8 KILLED, **1 SURVIVED** (probe 8, `flattenOver` zero grounds; filed MEDIUM). Restores proved byte-identical; probe worktree torn down with the script's proof line |
+| Fixes address the finding, not the symptom | **yes** for all four; F6 clause 2 was closed better than proposed |
+| Fix-introduced regressions in blast radius | **one** - F2's membership pin sits inside a skipIf case that does not need the phone repo (HIGH above); the parser, region() and import-graph changes are clean |
+| Id spaces typed | **partial** - `PaletteToken` still enforces the palette in both directions; the new SCHEME_INVARIANT set is stringly (LOW) |
+| Mutation probes this round | 3 - 1 KILLED, **1 SURVIVED**, 1 negative control. Restore proved byte-identical (`git diff` 0 bytes); probe worktree torn down with the script's proof line |
 
-Out-of-lane observations: two, listed above.
+Out-of-lane observations: none new this round.
