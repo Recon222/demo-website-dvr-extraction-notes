@@ -122,19 +122,82 @@ describe('A69 — no local status-colour map survives in U6.4b`s four files', ()
     readFileSync(join(process.cwd(), 'features', 'demo', 'ui', 'screens', `${name}.tsx`), 'utf8')
       .replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '')
 
-  /** Object literals holding two or more `colors.<severity>` reads — a private trio forming. */
-  const trios = (src: string): string[] =>
-    (src.match(/\{[^{}]*\}/g) ?? []).filter(
-      (block) => (block.match(/colors\.(error|warning|success|info)\b/g) ?? []).length >= 2,
-    )
+  /**
+   * Every object literal in the source, brace-BALANCED — W3 review **F54**.
+   *
+   * Was `/\{[^{}]*\}/g`, which by construction cannot match a literal containing another literal:
+   * the character class excludes the very brace that opens the nested one. So the outer table of
+   * `{ SAFE: { fill: colors.successLight } , CRITICAL: { fill: colors.errorLight } }` was never a
+   * candidate, and the two inner slices held one read each — under the threshold. The lane's
+   * probe confirmed it: P12-nested SURVIVED.
+   *
+   * A depth counter is the whole fix. It yields the OUTER literal as well as the inner ones, so a
+   * vocabulary split across nested entries is counted where it actually lives.
+   */
+  const literals = (src: string): string[] => {
+    const out: string[] = []
+    for (let i = 0; i < src.length; i++) {
+      if (src[i] !== '{') continue
+      let depth = 0
+      for (let j = i; j < src.length; j++) {
+        if (src[j] === '{') depth++
+        else if (src[j] === '}' && --depth === 0) {
+          out.push(src.slice(i, j + 1))
+          break
+        }
+      }
+    }
+    return out
+  }
 
-  it('finds none — and PROVES the reader works by planting one', () => {
+  /**
+   * A severity read, in every form this campaign has actually shipped one — **F54**.
+   *
+   * 1. `colors.error` — the bare name. All the old pattern saw.
+   * 2. `colors.errorLight` / `warningOnLight` / `successDark` / `warningAccent` — the `*Light`
+   *    family. The old `\b` after the severity name could not match these at all: `error` followed
+   *    by `L` is not a word boundary. This is the form the SEAM itself is built from, so it is the
+   *    form a hand-rolled copy of the seam takes.
+   * 3. `c[`${severity}Light`]` — the computed template-key read. **This is W2/F26's own shape** —
+   *    the literal way `severityTone` resolves a trio (`tokens/status.ts:118-127`) — so a private
+   *    re-derivation copied from the seam is invisible to a scan that only reads dotted names.
+   *    A ratchet citing F26 as its reason that cannot see F26's spelling is the defect F54 names.
+   */
+  const SEVERITY_READ =
+    /(?:colors|palette|c)\s*(?:\.\s*(?:error|warning|success|info)[A-Za-z]*\b|(?:\.\s*\w+|\[[^\]]*\])*\[\s*`[^`]*\$\{[^}]*\}[A-Za-z]*`\s*\])/g
+
+  /** Object literals holding two or more severity reads — a private trio forming. */
+  const trios = (src: string): string[] =>
+    literals(src).filter((block) => (block.match(SEVERITY_READ) ?? []).length >= 2)
+
+  it('finds none — and PROVES the reader sees all FOUR shipped forms', () => {
     for (const name of OWNED) expect(trios(read(name)), name).toEqual([])
-    // The planted control. A source scan that matches nothing is indistinguishable from a source
-    // scan that is broken, and this campaign has shipped that failure three times. If the regex
-    // ever stops seeing a map, this line reds first and names itself.
-    const planted = "const STATUS = { SAFE: colors.success, CRITICAL: colors.error }"
-    expect(trios(planted), 'the scan can no longer see a status map — fix the pattern').toHaveLength(1)
+
+    /**
+     * The planted controls. A source scan that matches nothing is indistinguishable from one that
+     * is broken, and this campaign has shipped that failure three times — so the roster is
+     * asserted for COMPLETENESS, not by example. Three of these four SURVIVED the lane's probes
+     * against the previous predicate (F54); the flat one was the only kill.
+     */
+    const PLANTED: Readonly<Record<string, string>> = {
+      flat: 'const STATUS = { SAFE: colors.success, CRITICAL: colors.error }',
+      nested:
+        'const STATUS = { SAFE: { fill: colors.successLight }, CRITICAL: { fill: colors.errorLight } }',
+      light: 'const TONE = { bg: colors.warningLight, fg: colors.warningOnLight }',
+      computed:
+        'const tone = { background: c[`${severity}Light`], color: c[`${severity}OnLight`] }',
+    }
+    // Reported as a table so a failure names WHICH form went blind, rather than just a count.
+    expect(
+      Object.entries(PLANTED).map(([form, src]) => `${form}: ${trios(src).length > 0}`),
+      'the scan can no longer see a status map in one of its shipped forms — fix the pattern',
+    ).toEqual(Object.keys(PLANTED).map((form) => `${form}: true`))
+
+    // ...and it is not simply matching everything: a lone severity read is a legitimate one-off,
+    // and a table of unrelated tokens is not a severity vocabulary. Without this, a predicate that
+    // returned every literal would pass the roster above.
+    expect(trios('const x = { color: colors.error }'), 'one read is not a vocabulary').toEqual([])
+    expect(trios('const x = { a: colors.text, b: colors.textTertiary }'), 'not severities').toEqual([])
   })
 
   it('routes every status colour in those files through the seam instead', () => {
