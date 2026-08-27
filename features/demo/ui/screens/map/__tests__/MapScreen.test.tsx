@@ -280,6 +280,25 @@ describe('MapScreen — status + text filters', () => {
     expect(screen.getByText('Rear door')).toBeInTheDocument()
   })
 
+  it('renders the whole bar over the token-less fallback panel — and admits proximity is unreachable there', async () => {
+    // `features/demo/CLAUDE.md`: a missing Mapbox token must never break a flow. `MapControls` is
+    // a SIBLING of `MapCanvas` in `MapScreen`, not a child, so the chrome paints over
+    // `[data-map-fallback]` exactly as it paints over tiles.
+    vi.unstubAllEnvs()
+    const { container } = renderRich()
+    expect(container.querySelector('[data-map-fallback]')).toBeInTheDocument()
+    expect(screen.getByTestId('map-search-pill')).toBeInTheDocument()
+    fireEvent.change(screen.getByTestId('map-search-input'), { target: { value: 'Rear' } })
+    expect(screen.getByTestId('map-search-input')).toHaveValue('Rear')
+
+    // The honest half. `MapCanvas` returns the fallback BEFORE the `[data-map-canvas]` surface, so
+    // there is nothing to long-press — and long-press is the only proximity route U5.2 leaves.
+    // A visitor with no token could previously reach proximity through the toggle pill; between
+    // U5.2 and U5.3 they cannot. U5.3's sheet Toggle restores it token-less.
+    expect(container.querySelector('[data-map-canvas]')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('proximity-chip')).not.toBeInTheDocument()
+  })
+
   it('renders NO filters button at all until a sheet is wired — no affordance that lies', async () => {
     // `MapScreen` deliberately omits `onOpenFilters` until U5.3 mounts `MapFiltersSheet`
     // (§49a: "a mount without a handler simply has no button, rather than a button that swallows
