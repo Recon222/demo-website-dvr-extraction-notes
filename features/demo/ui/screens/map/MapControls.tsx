@@ -422,7 +422,14 @@ export function MapControls({
                   type="button"
                   data-testid="proximity-chip-body"
                   onClick={onOpenFilters}
-                  aria-label={`Proximity filter, ${proximityRadius} kilometre radius, showing ${filteredCount} of ${locationCount} locations`}
+                  /* F59 — WCAG 2.5.3 Label in Name. The visible text is `2 km · 5 of 9`, so the
+                     accessible name has to CONTAIN "2 km" and "5 of 9" or a speech-input user
+                     cannot address the control by what they read. The phone's own wording spelt
+                     "kilometre", which breaks the `km` token the visitor can actually say. The
+                     repo states the rule in-tree this same wave
+                     (`ImportTerminalProgress.tsx:618-622`: *"an aria-label would replace them
+                     (accname override) and break Label-in-Name for voice control"*). */
+                  aria-label={`Proximity filter, ${proximityRadius} km, showing ${filteredCount} of ${locationCount} locations`}
                   title="Opens map filters"
                   style={chipBody}
                 >

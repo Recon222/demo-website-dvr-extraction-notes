@@ -225,13 +225,19 @@ describe('MapControls — proximity summary chip', () => {
     expect(screen.getByTestId('proximity-chip-summary')).toHaveAttribute('role', 'status')
   })
 
-  it('carries the phone accessibility label verbatim, count and all', () => {
+  it('keeps its own visible text inside its accessible name (WCAG 2.5.3, F59)', () => {
+    // The phone spells "kilometre radius" (`MapControls.tsx:206`). The demo diverges to `km`
+    // because that is the token the visitor can SEE and therefore say: a speech-input user
+    // addresses this control as "2 km", and an accessible name that never contains those
+    // characters is unreachable by voice. Both visible fragments are asserted AGAINST THE
+    // RENDERED TEXT rather than retyped, so the two cannot drift apart.
     renderControls({ proximityActive: true, proximityRadius: 0.5, locationCount: 9, filteredCount: 5 })
-    expect(
-      screen.getByLabelText(
-        'Proximity filter, 0.5 kilometre radius, showing 5 of 9 locations',
-      ),
-    ).toBeInTheDocument()
+    const body = screen.getByTestId('proximity-chip-body')
+    const name = body.getAttribute('aria-label') ?? ''
+    expect(name).toBe('Proximity filter, 0.5 km, showing 5 of 9 locations')
+    for (const visible of (body.textContent ?? '').split('·').map((s) => s.trim())) {
+      expect(name, `visible "${visible}" must appear in the accessible name`).toContain(visible)
+    }
   })
 
   it('opens the filters sheet from the chip body and deactivates from the ✕', () => {
