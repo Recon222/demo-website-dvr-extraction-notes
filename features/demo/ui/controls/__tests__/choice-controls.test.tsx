@@ -60,6 +60,13 @@ describe('RadioOption — the selected treatment (A74)', () => {
     const { row, ring, dot, label } = radio(false)
     expect(row.style.borderColor).toBe(UNCHECKED)
     expect(ring.style.borderColor).toBe(UNCHECKED)
+    // Named explicitly, and not only via the constant. Probe W-F27b: reverting
+    // `UNCHECKED_MARK_EDGE` to `colors.border` moves BOTH sides of a composed pin, so this file
+    // stayed green while `palette-contrast.test.ts` caught it alone. The constant-composed lines
+    // above assert "the control uses the seam"; this one asserts "not the value that measured
+    // 1.33:1" — the same shape the I-4 pin uses to name `#4BA3D4`.
+    expect(row.style.borderColor).not.toBe(jsdomColor(colors.border))
+    expect(ring.style.borderColor).not.toBe(jsdomColor(colors.border))
     expect(dot).toBeNull()
     expect(label.style.color).toBe(jsdomColor(colors.text))
   })
