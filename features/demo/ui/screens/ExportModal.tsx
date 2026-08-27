@@ -17,6 +17,7 @@ import { CentredDialog } from '@/features/demo/ui/controls/CentredDialog'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { GLASS, glassCardNested } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
+import { spacing } from '@/features/demo/ui/tokens/scale'
 
 /**
  * ExportModal — the unified export progress / validation overlay (parity P5.3, matrix row 25).
@@ -308,7 +309,8 @@ function ValidationContent({
         >
           {prompt.summary}
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        {/* Phone `export/ExportModal.tsx:441`: `gap: Layout.spacing.md` (W2 F41). */}
+        <div style={{ display: 'flex', gap: spacing.md }}>
           <button
             type="button"
             onClick={onCancel}

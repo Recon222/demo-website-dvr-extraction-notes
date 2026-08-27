@@ -469,3 +469,58 @@ describe('the fold — one centred dialog, not three', () => {
     expect(shapes.alert).toContain('left:24px;right:24px')
   })
 })
+
+/**
+ * W2 F41. The phone spells the dialog action row's gap `Layout.spacing.md` (16) in BOTH of its
+ * centred-dialog files — `DeleteConfirmationModal.tsx:313-316` and
+ * `export/ExportModal.tsx:439-442`, each `actions: { flexDirection: 'row', gap: Layout.spacing.md }`.
+ * All three demo dialogs shipped 8.
+ *
+ * The row is the CALLERS' content, not the shell's surface, so it is pinned across the three
+ * callers here rather than three times in three files — one place to read, one place to break.
+ */
+describe('the dialog action row — F41, the phone gap', () => {
+  const rowOf = (buttonName: string): HTMLElement =>
+    screen.getByRole('button', { name: buttonName }).parentElement!
+
+  it('AlertDialog, DeleteConfirmationModal and ExportModal all space their actions at spacing.md', () => {
+    render(<AlertDialog title="T" message="m" actions={[{ label: 'OK', onPress: vi.fn() }]} onDismiss={vi.fn()} />)
+    expect(rowOf('OK').style.gap).toBe(`${spacing.md}px`)
+    cleanup()
+
+    render(
+      <DeleteConfirmationModal
+        target={{ type: 'location', locationName: 'Kim', address: '' }}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+    expect(rowOf('Cancel').style.gap).toBe(`${spacing.md}px`)
+    cleanup()
+
+    render(
+      <ExportModal
+        mode="validation"
+        validationResult={{
+          caseId: 'c1',
+          caseNumber: 'PR25-0098213',
+          validLocations: [],
+          invalidLocations: [
+            { locationId: 'l1', locationName: 'Rear Alley Camera', valid: false, errors: ['Completion date'] },
+          ],
+          allValid: false,
+          totalLocations: 1,
+          validCount: 0,
+          invalidCount: 1,
+        }}
+        onContinueAnyway={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+    expect(rowOf('Cancel export').style.gap).toBe(`${spacing.md}px`)
+    cleanup()
+
+    // …and 16 is the phone's value, not a coincidence of the scale.
+    expect(spacing.md).toBe(16)
+  })
+})

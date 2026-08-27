@@ -3,6 +3,7 @@
 import { useId } from 'react'
 import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { CentredDialog } from '@/features/demo/ui/controls/CentredDialog'
+import { spacing } from '@/features/demo/ui/tokens/scale'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 
 /** One alert button. Mirrors React Native's `Alert.alert` button shape, styles included. */
@@ -94,7 +95,15 @@ export function AlertDialog({ title, message, actions, onDismiss }: AlertDialogP
       {/* Like the OS alert this mirrors, 3+ buttons stack into full-width rows (the
           iOS multi-option shape — the phone's three-arm Notes/OCR confirms render this
           way); 1–2 keep the side-by-side row. */}
-      <div style={{ display: 'flex', gap: 8, ...(actions.length > 2 ? { flexDirection: 'column' as const } : {}) }}>
+      <div
+        style={{
+          display: 'flex',
+          // Phone `DeleteConfirmationModal.tsx:315` / `export/ExportModal.tsx:441`:
+          // `actions: { flexDirection: 'row', gap: Layout.spacing.md }` (W2 F41).
+          gap: spacing.md,
+          ...(actions.length > 2 ? { flexDirection: 'column' as const } : {}),
+        }}
+      >
         {actions.map((a) => (
           <button
             key={a.label}
