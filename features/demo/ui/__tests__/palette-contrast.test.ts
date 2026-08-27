@@ -3,6 +3,7 @@ import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { GLASS_TIER, type GlassTier } from '@/features/demo/ui/tokens/glass-tiers'
 import { palette } from '@/features/demo/ui/tokens/palette'
 import { flattenOver } from '@/features/demo/ui/tokens/scale'
+import { MEDIA_CLOSE_CHIP } from '@/features/demo/ui/screens/MediaLibrarySheet'
 
 /**
  * Palette contrast contract — ported from the phone's
@@ -557,18 +558,48 @@ describe('scrim opacity', () => {
   // 4.5:1 and not the 3:1 of 1.4.11: a 24px glyph read as a symbol, and the chip is the
   // fullscreen viewer's only exit. Measured over a WHITE and a BLACK frame — exterior daylight
   // CCTV stills make pure white the real worst case, not a pessimistic one.
-  it.todo(
-    'rows 36-37 (U4.4): keeps the fullscreen media close glyph legible over the brightest still — needs MEDIA_CLOSE_CHIP',
-  )
+  it('rows 36-37: keeps the fullscreen media close glyph legible over the brightest still', () => {
+    // Measured over a WHITE and a BLACK frame — exterior daylight CCTV stills make pure white
+    // the real worst case, not a pessimistic one. `MEDIA_CLOSE_CHIP` is imported from the
+    // module that PAINTS it, so a retune fails here rather than being restated as a literal
+    // that no longer describes the UI.
+    expect(
+      [
+        ['close glyph over a white frame', '#ffffff'],
+        ['close glyph over a black frame', '#000000'],
+      ]
+        .map(([label, frame]) => [label, round(contrast(palette.dark.text, [MEDIA_CLOSE_CHIP, frame]))] as const)
+        .filter(([, ratio]) => ratio < 4.5),
+    ).toEqual([])
+  })
 
-  // Rows 38-40, phone `:430-464`. DEF-UI-005: both preview modals lay their loading plate over
-  // the viewer's own chrome, so `PDF_VIEWER_CHROME` is the real ground, not the app background.
-  // The spinner is the only cue the preview is still working, and the LABEL can pass while it
-  // does not — which is exactly what happened at 0.32 (label 8.59, spinner 2.54). Row 40 is the
-  // value pin `PDF_LOADING_SCRIM === 'rgba(0, 40, 83, 0.9)'`, which is what stops a future
-  // "resync" from silently pointing it back at `scrim`.
+  it('rows 36-37b: and the chip is NOT the backdrop token', () => {
+    // The whole reason it carries its own constant. At `colors.scrim`'s 0.32 the chip
+    // composites to a pale grey over a bright still and the glyph drops under any floor —
+    // which is the PR #127 `3893169e` regression this pin exists to stop coming back.
+    expect(MEDIA_CLOSE_CHIP).not.toBe(palette.dark.scrim)
+    expect(round(contrast(palette.dark.text, [palette.dark.scrim, '#ffffff']))).toBeLessThan(4.5)
+  })
+
+  // Rows 38-40, phone `:430-464`. STILL TODO after U4.4, and the reason is a refuted premise
+  // rather than unfinished work: matrix A90 says the demo's analog is *"`PdfPreview`'s loading
+  // state"*, and there is no such state. `ui/chrome/PdfPreview.tsx` (176 lines) holds exactly
+  // one `useState` — `printNotice`, for a blocked print dialog — no spinner, no `onLoad`, no
+  // loading plate; it renders the document straight into an `iframe srcDoc`. So there is no
+  // surface for `PDF_LOADING_SCRIM` to ground and no spinner whose ratio could be measured.
+  //
+  // DEF-UI-005 is "the loading MESSAGE is invisible". The demo shows no message, so it does not
+  // have the defect, and creating a loading overlay to satisfy a contrast row would be building
+  // UI to make a test pass. `PDF_VIEWER_CHROME` is deliberately not created either: the phone's
+  // `#525659` is the colour Chrome's and WebKit's own PDF viewers paint, matched so a `WebView`
+  // does not flash — the demo paints its own surround (`PdfPreview.tsx:151`, `#3a3f47`) and has
+  // no native viewer to match, so porting the constant would cargo-cult a platform fact into a
+  // place where no platform paints it.
+  //
+  // U4.4's report proposes this as a deferral. Un-todo it the day `PdfPreview` grows a real
+  // loading affordance, and not before.
   it.todo(
-    'rows 38-40 (U4.4): keeps the PDF preview spinner (>= 3.0) and label (>= 4.5) legible on the viewer chrome, and pins PDF_LOADING_SCRIM — needs PDF_LOADING_SCRIM + PDF_VIEWER_CHROME',
+    'rows 38-40 (deferred, see U4.4 report): PdfPreview has no loading state to ground PDF_LOADING_SCRIM',
   )
 })
 
