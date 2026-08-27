@@ -93,9 +93,15 @@ export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
         {p.result && (
           <>
             <div style={{ borderRadius: 12, border: GLASS.borderAccent, background: GLASS.gradientPanel, padding: 20, marginBottom: 18, textAlign: 'center' }}>
-              <div style={{ fontSize: 13, color: '#7a9fc4', marginBottom: 6 }}>Time Difference</div>
-              <div style={{ fontSize: 34, fontWeight: 700, color: '#f0f4f8', fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace", marginBottom: 6 }}>{p.result.diff}</div>
-              <div style={{ fontSize: 14, fontWeight: 500, color: '#4BA3D4' }}>{p.result.isCorrect ? 'DVR time is correct' : `DVR is ${p.result.direction} real time`}</div>
+              <div style={{ fontSize: 13, color: colors.textTertiary, marginBottom: 6 }}>Time Difference</div>
+              <div style={{ fontSize: 34, fontWeight: 700, color: colors.text, fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace", marginBottom: 6 }}>{p.result.diff}</div>
+              {/* Phone `resultDirection` (`time-offset.tsx:759-762`), de-coloured in the same
+                  campaign: "the label above it already says 'Time Difference', so colour was
+                  decoration on a calibration verdict". Was `primaryLight`, which measures
+                  3.82-4.35 on the four glass stops this screen paints on — under AA at every
+                  one. `colors.text` is 9.70-11.05 on the same four. The verdict is still
+                  distinguished from the label above it, by WEIGHT (500 vs 400). */}
+              <div style={{ fontSize: 14, fontWeight: 500, color: colors.text }}>{p.result.isCorrect ? 'DVR time is correct' : `DVR is ${p.result.direction} real time`}</div>
             </div>
 
             {p.correctedScopes.length > 0 && (
@@ -112,13 +118,29 @@ export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
                         (`4f69eb73`, PR #124); this is its bottom rung, and the only value on
                         this side that was off it. */}
                     <div style={{ fontSize: 14, fontWeight: 600, color: colors.text, marginBottom: 10 }}>Scope {i + 1}</div>
-                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: '#7a9fc4', marginBottom: 5 }}>Requested ({sc.reqLabel})</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}><span style={cell('#7a9fc4')}>Start</span><span style={cell('#f0f4f8')}>{sc.reqStart}</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><span style={cell('#7a9fc4')}>End</span><span style={cell('#f0f4f8')}>{sc.reqEnd}</span></div>
-                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: '#4BA3D4', marginBottom: 5 }}>Adjusted ({sc.adjLabel})</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}><span style={cell('#7a9fc4')}>Start</span><span style={{ ...cell('#4BA3D4'), fontWeight: 600 }}>{sc.adjStart}</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={cell('#7a9fc4')}>End</span><span style={{ ...cell('#4BA3D4'), fontWeight: 600 }}>{sc.adjEnd}</span></div>
-                    {sc.cameras && <div style={{ fontSize: 12, color: '#7a9fc4', fontStyle: 'italic', marginTop: 10 }}>Cameras: {sc.cameras}</div>}
+                    {/* `timeSectionHeader` — the phone's field-LABEL register, and explicitly
+                        NOT a fourth heading level (`time-offset.tsx:782-785`: "uppercase and
+                        painted in `textSecondary` … case plus colour separate it from
+                        `scopeTitle` without competing on weight"). The 11px and the 0.5
+                        letter-spacing are lifted prototype values, off plan §4.9's ladder and
+                        kept as literals rather than snapped to it. */}
+                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: colors.textTertiary, marginBottom: 5 }}>Requested ({sc.reqLabel})</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}><span style={cell(colors.textTertiary)}>Start</span><span style={cell(colors.text)}>{sc.reqStart}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><span style={cell(colors.textTertiary)}>End</span><span style={cell(colors.text)}>{sc.reqEnd}</span></div>
+                    {/* Was `primaryLight`, i.e. colour as the SOLE carrier of which domain a
+                        block is in — on the one screen whose entire job is telling two domains
+                        apart, where a reader who cannot separate the hues gets two identically
+                        laid-out blocks. The phone paints both sub-labels from ONE token
+                        (`:566` and `:588`); the words already say which is which. */}
+                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: colors.textTertiary, marginBottom: 5 }}>Adjusted ({sc.adjLabel})</div>
+                    {/* Phone `timeValueAdjusted` (`:844-848`): "Every accent token in the palette
+                        fails at least one theme on this surface; only `colors.text` clears
+                        both." These two ARE the screen's output — the times an analyst
+                        transcribes. What still marks them as adjusted is the weight (600 against
+                        the requested rows' 400), which is the phone's carrier too. */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}><span style={cell(colors.textTertiary)}>Start</span><span style={{ ...cell(colors.text), fontWeight: 600 }}>{sc.adjStart}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={cell(colors.textTertiary)}>End</span><span style={{ ...cell(colors.text), fontWeight: 600 }}>{sc.adjEnd}</span></div>
+                    {sc.cameras && <div style={{ fontSize: 12, color: colors.textTertiary, fontStyle: 'italic', marginTop: 10 }}>Cameras: {sc.cameras}</div>}
                   </div>
                 ))}
               </>
@@ -128,7 +150,7 @@ export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
                 row's own `padding: '12px 4px'` and `marginTop: 6` go with it — one switch, one
                 row recipe, and the phone's own Switch row carries no padding at all. */}
             <Toggle label="DVR Applies DST" on={p.dvrAppliesDST} onClick={p.onToggleDst} />
-            <div style={{ fontSize: 12.5, color: '#7a9fc4', marginTop: 2, marginBottom: 10 }}>
+            <div style={{ fontSize: 12.5, color: colors.textTertiary, marginTop: 2, marginBottom: 10 }}>
               Enable if the DVR clock adjusts for Daylight Saving Time
             </div>
 
