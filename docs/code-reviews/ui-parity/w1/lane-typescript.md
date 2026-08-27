@@ -1,4 +1,198 @@
-# Lane: typescript — Wave 1 (phase U1), PR #40 @ `28e7993`
+# Lane: typescript — Wave 1 (phase U1), PR #40 / #41
+
+## Round 1 (fix delta)
+
+Head: `feat/uiparity-w1` @ `044578a` (round 0 was `28e7993`). Authority: the fix-mapping comment on
+PR #41. Read the delta only — each fix commit and the lines it touched, the cumulative guard and
+parity-test diffs, and plan U1.1's row (opened because F14's refutation cites §4.3).
+Probes in my own worktree `worktrees/probe-w1d-typescript-scheme` off `044578a`; torn down with
+`tools/worktree-remove.ps1` — `unlinked 549 junction(s) in 2 pass(es)` · `.pnpm` 240 -> 240 · exit 0.
+
+**Leftover-worktree check, as asked:** `git worktree list` shows no `probe-w1d-typescript-*`. The
+only `w1d` tree is `probe-w1d-tests` @ `044578a`, which belongs to the tests lane — not mine to
+remove. I left nothing behind when the session cut off.
+
+### Cold gates at the integrated head (own worktree, solo)
+
+| Gate | Round 0 | Round 1 |
+|---|---|---|
+| `rm -f tsconfig.tsbuildinfo && pnpm exec tsc --noEmit --incremental false` | exit 0 | **exit 0** |
+| `node .design-sync/check-rn-parity.mjs` | exit 0, 115/115 | **exit 0, 115/115** |
+| `pnpm test --silent` | 272 files / 3562 passed / 10 todo | **272 files / 3575 passed / 10 todo, exit 0** (+13 tests, 0 regressions) |
+
+### My findings
+
+**F15 (my r0 HIGH; aggregator re-graded MEDIUM) — FIXED.** Commit `8d65308`.
+`glass-tokens.ts:77` now reads `const ACCENT_FROM = '#1F6B99' satisfies typeof palette.dark.primaryDark`,
+with `palette` added to the import — the one-token change I specified. Re-probed both directions, as
+the brief requires:
+
+```
+MUTATION PROBE 1a: the §9 clause 12 flip
+Target: features/demo/ui/tokens/palette.ts — export const scheme = 'dark' satisfies ColorScheme
+Mutation applied: 'dark' -> 'light'
+Result: tsc exit 0 — THE FLIP COMPILES. (Round 0: exit 2, TS1360.)
+Restore: verified — git status --porcelain empty.
+
+MUTATION PROBE 1b: F7's kill, unchanged
+Target: features/demo/ui/tokens/palette.ts — dark.primaryDark '#1F6B99' -> '#1E6A98'
+Result: KILLED at compile time (tsc exit 2)
+  features/demo/ui/glass-tokens.ts(77,31): error TS1360:
+    Type '"#1F6B99"' does not satisfy the expected type '"#1E6A98"'.
+Restore: verified — git status --porcelain empty.
+```
+The rewritten comment block (`glass-tokens.ts:57-66`) states the reason correctly and names the
+finding, so the next reader cannot re-introduce it by "simplifying" back to `colors`.
+
+**F20 (my r0 LOW — widening annotation) — FIXED.** Commit `700ce2b`: all three header-chrome
+exports close with `as const satisfies CSSProperties`, and `header-chrome.test.tsx`'s `as string`
+cast is gone. The fix went one better than I asked by adding a compile-time regression pin, and I
+verified that pin is real rather than decorative:
+
+```
+MUTATION PROBE 6: revert glassHeaderBar to the annotation
+Target: features/demo/ui/controls/header-chrome.ts:81
+Mutation applied: `export const glassHeaderBar = { … } as const satisfies CSSProperties`
+              -> `export const glassHeaderBar: CSSProperties = { … }`
+Result: KILLED at compile time (tsc exit 2)
+  features/demo/ui/controls/__tests__/header-chrome.test.tsx(46,3): error TS2322:
+    Type 'Background<string | number> | undefined' is not assignable to type 'string'.
+Restore: verified — git status --porcelain empty.
+```
+
+**F14 (my r0 LOW — the undocumented `boxShadow` wipe — folded in) — FIXED, and my prescription was
+refuted correctly.** Commit `3c1eac3`. The docblock now carries the `boxShadow` clause I asked for
+(`glass-tokens.ts:42-45`, with the compose form spelled out). More importantly, F14 **refuted the
+border prescription I would have endorsed in round 0** — "set `borderColor`, then re-set
+`borderTopColor`" — and replaced it with the three side longhands. Judged on the merits, with a
+probe: their refutation holds and mine was wrong.
+
+```
+MUTATION PROBE 3: F14's prescribed form at a live consumer
+Target: features/demo/ui/screens/CamerasScreen.tsx:85
+Mutation applied: { ...glassCard, padding: 16, marginBottom: 14,
+                    borderRightColor: '#123456', borderBottomColor: '#123456',
+                    borderLeftColor: '#123456' }
+Result: the LIT EDGE SURVIVES. glass-card-recipe.test.tsx:233
+  (`expect(card.style.borderTopColor).toBe(HIGHLIGHT)`) PASSES; the run reds one line later at
+  :234 on `borderRightColor`, which is my own deliberate re-tint of a consumer the suite pins as
+  standard — not a defect in the form. Contrast round 0's PROBE 2, where the shorthand override
+  made :233 itself fail ('rgb(18, 52, 86)' vs the highlight).
+Restore: verified — git status --porcelain empty.
+```
+The two negative controls F14 added (duplicate-key collapse on first paint; React writing only
+CHANGED keys on update, which defeats the destructure-and-re-add form) are both real mechanisms and
+neither was in my round-0 fix text. This is a better fix than the one I proposed.
+
+### Fallout in my territory from the other fixes — one new HIGH
+
+**F18's scan (`c0458b6`) — works, and is correctly interlocked with F15.** Two probes:
+
+```
+MUTATION PROBE 2a/2b: plant a real violation at each live consumer
+Target: glass-tokens.ts:115 `const tier = GLASS_TIER[scheme]` -> `GLASS_TIER.dark`
+        header-chrome.ts:72 `GLASS_TIER[scheme].header` -> `GLASS_TIER.dark.header`
+Result: BOTH KILLED (exit 1) — "expected [ 'glass-tokens.ts' ] to deeply equal []" and
+        "expected [ 'controls/header-chrome.ts' ] to deeply equal []".
+  `glass-tokens.ts` being covered is the point: F18's refinement swapped `TOKEN_MODULES` for
+  `SCHEME_DECLARERS` precisely because the former exempts it, and the probe confirms the swap.
+Restore: verified.
+
+MUTATION PROBE 2c: is F18's `typeof` carve-out load-bearing, or decorative?
+Target: glass-tokens.test.ts:113 — remove `(?<!\btypeof\s+)` from SCHEME_HALF
+Result: KILLED (exit 1) — "expected [ 'glass-tokens.ts' ] to deeply equal []".
+  So the scan DOES reach F15's line and the carve-out is exactly what exempts it. The two fixes
+  are interlocked deliberately, not by luck.
+Restore: verified.
+```
+
+**F16 / F17 / F21 and the master carry — no fallout, and the carry resolved the conflict the right
+way.** F16 pins `TIER_KEYS` against `Object.keys(GLASS_TIER.dark)` and the tier PARTS against
+`Object.keys(GLASS_TIER.dark.card)` with an explicit `UNANCHORED = ['innerShadow']`, which closes
+the fifth-part hole my round-0 PROBE 3 could not reach. F17 moves `stuck` into `checkParity()` so
+the CLI and the vitest case cannot disagree; the CLI's exit now keys on `drift.length ||
+stuck.length`, and a web-side-only PARSE-FAILED still lands in `drift` (`a.rn !== a.web`), so no
+exit path was weakened. F21 closes `readStop` with `\s*\]`. The carry moved my own W0/F2 membership
+pin — plus F16's two — into the new **ungated** `local invariants` describe, which is correct:
+both sides of those assertions are local, and leaving them under `skipIf(!rnAvailable())` was the
+W0/F11 defect. `e56c0f1`'s `indexOf` dedupe instead of a `Set` spread is right for this repo's
+`target: es5` (TS2802).
+
+```
+[HIGH] F19 created a THIRD two-scheme record in this same fix round, and F18's scan does not name
+       it — so severing its derivation passes the scan, the cold typecheck and the whole suite.
+       The mapping comment claims the opposite.
+File: features/demo/ui/__tests__/glass-tokens.test.ts:113 (SCHEME_HALF)
+      vs features/demo/ui/glass-tokens.ts:103 (SHADOW_CARD) and :155 (`SHADOW_CARD[scheme]`)
+Issue: F18's gate is `/(?<!\btypeof\s+)\b(?:GLASS_TIER|palette)\s*\.\s*(?:dark|light)\b/` — a
+  hard-coded allow-list of two identifiers. F19 (`7ba1825`) added
+  `export const SHADOW_CARD = { light, dark } as const satisfies Record<ColorScheme, string>`,
+  consumed at `:155` as `SHADOW_CARD[scheme]`. Writing `SHADOW_CARD.dark` there is behaviourally
+  invisible while the demo renders dark — which is why the round's own probe Q7 recorded SURVIVED —
+  and the source scan that is supposed to be the backstop cannot see the name.
+Evidence:
+  MUTATION PROBE 4: sever F19's derivation
+  Target: features/demo/ui/glass-tokens.ts:155
+  Mutation applied: `shadowCard: SHADOW_CARD[scheme],` -> `shadowCard: SHADOW_CARD.dark,`
+  Result: SURVIVED, three times over (all from exit codes)
+    F18's scan   : exit 0 — 7 passed (7)
+    cold tsc     : exit 0
+    full suite   : exit 0 — 272 files, 3575 passed, 10 todo
+  Provenance: canonical `features/demo/ui/glass-tokens.ts`; no mirrors.
+  Restore: verified — git status --porcelain and git diff --stat both empty.
+
+  The claim it falsifies is in the PR #41 mapping comment, F19's row, verbatim: *"probe Q7
+  (severed derivation) recorded SURVIVED-bounded -> **covered by F18's scan**."* It is not covered.
+  This is the same hand-maintained-mirror class the round already closed twice — W0/F2 for
+  `PALETTE_KEYS`, F16 for `TIER_KEYS`/`TIER_PARTS` — recurring a third time, in the one place left
+  where the mirror is a regex instead of an array.
+Fix: the one-token version is adding `SHADOW_CARD` to the alternation. The durable version drops the
+  allow-list, and I verified it costs nothing:
+  MUTATION PROBE 5: name-agnostic regex
+    `/(?<!\btypeof\s+)\b[A-Za-z_$][\w$]*\s*\.\s*(?:dark|light)\b/`
+    - clean tree -> exit 0 (NO false red: every other `.dark`/`.light` under `ui/` outside the two
+      declarers is inside a comment — `Colors.dark`, `DangerFill.light`, `GlassColors.light`,
+      `PrimaryButtonGradient.dark` — and `stripComments` already removes them)
+    - with PROBE 4's severed derivation -> exit 1, "expected [ 'glass-tokens.ts' ] to deeply equal []"
+  Restore: verified. Whichever is chosen, the exemption belongs on the FILE (`SCHEME_DECLARERS`,
+  which already works) rather than on the identifier, so a fourth two-scheme record needs no edit.
+```
+
+### What I re-verified and found clean
+
+- **The `scheme` seam** — my assigned angle — is now guarded, not just observed. Round 0 I could
+  only grep it; F18 makes it a gate, and PROBE 2a/2b show the gate bites at both live consumers.
+  The HIGH above is that the gate's reach is one identifier short of the code it now has to cover.
+- `SHADOW_CARD`'s `as const satisfies Record<ColorScheme, string>` is the right shape and matches
+  `palette.ts:166` / `glass-tiers.ts:186`; the flip probe (1a) exercised it and it compiles in both
+  schemes.
+- No `any`, no `as any`, no non-null assertion, no new `Date.now()` / `Math.random()`, no `useStore`
+  outside `DemoExperience.tsx`, no `features/demo/engine/**` file in the fix range, no new deep
+  `@/features/demo/{ui,engine}` import from `app`/`components`/`lib`.
+- `isolatedModules` clean across the fix range: `import { palette, type PaletteToken }` in
+  `rn-token-parity.test.ts` uses the inline type modifier; `SCHEME_INVARIANT` crosses from the
+  untyped `.mjs` and is re-typed at `readonly PaletteToken[]` on the TS side, which is the right
+  place to put it.
+
+## Typescript Summary (Round 1 — fix delta)
+FIXED: 3 (r0 HIGH -> F15 · r0 LOW/annotation -> F20 · r0 LOW/boxShadow -> F14) · PARTIAL: 0 · UNFIXED: 0
+New findings this round: CRITICAL 0 · **HIGH 1** · MEDIUM 0 · LOW 0
+Verdict: REVISE
+
+Scheme seam (single consumption site): guarded by F18 and biting — but one identifier short of
+  F19's new record; see the HIGH
+Store-bridge integrity: preserved
+Engine purity: preserved
+Barrel + marketing/demo isolation: preserved
+Determinism seam: preserved
+Mutation probes this round: 7 run — 5 KILLED (2 of them at COMPILE time), 1 flip-compiles
+  confirmation, **1 SURVIVED (the HIGH)**. All restores verified byte-identical.
+Out-of-lane observations: none new.
+
+---
+
+# Round 0 (initial review) — retained below for provenance
+
 
 Mode: code review. Base: `feat/uiparity-u0` @ `15e5a6f` (W0 + its fix round). Shared worktree read
 at `worktrees\w1-wave` (read-only). Probes cut in my own worktree

@@ -1,4 +1,200 @@
-# Lane: silent-failures — Wave 1 (U1.1–U1.4), PR #40 @ `28e7993`
+# Lane: silent-failures — Wave 1 (U1.1–U1.4), PR #40
+
+## Round 1 (fix delta)
+
+Head: `feat/uiparity-w1` @ `044578a` (branch is one docs-only commit further on, `1b4ac86`).
+Delta read: `git diff fc75577..044578a` — the fix commits and the lines they touch, per contract §7.
+Authority: the PR #41 mapping comment. My r1 items appear there as **F17** and **F16** (both
+demoted from my HIGH to MEDIUM by the aggregator) and **F21** (my LOW). I do not contest the
+demotions: both fixes landed at the strength I asked for, so the label is moot.
+
+Probe worktree `probe-w1d-sfh-stuck` off `044578a`; torn down with `tools/worktree-remove.ps1` —
+`unlinked 549 junction(s) in 2 pass(es)` · `.pnpm` 240 → 240 · exit 0. No leftover
+`probe-w1d-sfh-*` existed at start; the two live probe worktrees on this box belong to other
+seats and I did not touch them.
+
+Baseline in the probe worktree: standalone guard **115/115, exit 0**; the five token/tier/guard
+suites **53 passed (53)**, exit 0, **0 skipped** — the phone repo is present, so no verdict below
+is quoted off a skip.
+
+### Per-finding status
+
+**F17 (stuck reader invisible to the standalone CLI) — FIXED.**
+`check-rn-parity.mjs:483-509` computes `stuck` inside `checkParity()` and returns it beside
+`drift`/`parseFailed`; `:529-536` prints it and `:544` exits on `drift.length || stuck.length`.
+Parse-failed rows are skipped when building it, which is right — two identical "field not found"
+strings are not evidence of a stuck reader — and parse failures still force exit 1 through `drift`,
+so nothing was lost in the reshuffle. The test at `:249-278` now asserts the guard's OWN `stuck`
+instead of re-deriving the comparison, so the two entry points cannot disagree again.
+
+```
+MUTATION PROBE: re-run of my r1 survivor — both tier scopes flattened to one level
+Target: check-rn-parity.mjs:231 (`rnTierScope`) + :243 (`webTierScope`)
+Mutation: after: ['export const GlassColors'|'export const GLASS_TIER', `${scheme}: {`, `${tier}: {`]
+          -> after: [`${tier}: {`]   (both, the realistic edit — they are twins)
+At 28e7993: standalone printed "✓ all 115 anchor rows match", EXIT 0 — SURVIVED
+At 044578a: **EXIT 1 — KILLED**, and it says what broke:
+  "✗ 48 anchor row-pair(s) read the SAME value for light and dark — a reader is STUCK on one half:
+     card.gradientTop (rn side): both halves read rgba(248,250,252,1)
+     card.gradientTop (web side): both halves read rgba(248,250,252,1) …"
+  vitest also EXIT 1 (3 failed | 15 passed)
+Provenance: canonical source, probe worktree at 044578a. Restore: byte-identical (porcelain 0).
+```
+I checked the vacuity risk this class of fix usually carries — an empty `stuck` meaning "nothing
+was examined" rather than "nothing is stuck". `stuck` only inspects keys that have BOTH halves
+(`:499`), so a vanished scheme would make it silently empty; what closes that is the pair of
+both-halves loops (`schemes` must equal `['dark','light']` for every palette key and every tier
+key), and the fix's own comment at `:270-272` names exactly that dependency. It holds.
+`SCHEME_INVARIANT` moved into the guard as the single exclusion (`:360-367`) and the test pins
+that it is those two keys and nothing else, typed at `PaletteToken` so a typo is a compile error.
+
+**F16 (tier lists pinned by hand-typed cardinality) — FIXED, and better than I asked.**
+The three literal counts are gone; `rn-token-parity.test.ts:101-131` pins MEMBERSHIP against the
+live module — `[...TIER_KEYS].sort()` vs `Object.keys(GLASS_TIER.dark).sort()`, and the parts as
+`[...anchoredFields, ...UNANCHORED].sort()` vs `Object.keys(GLASS_TIER.dark.card).sort()`, so the
+deliberate `innerShadow` exclusion is now a NAME rather than the difference between 4 and 5 —
+which is the shape I prescribed. Beyond the prescription, W0/F11's carry moved both membership
+pins (palette and tier) into an **ungated** describe, so they now bite on a box without the phone
+repo. Two probes:
+
+```
+MUTATION PROBE: re-run of my r1 survivor — shrink the tier table
+Mutation: drop 'recessed' from TIER_KEYS (no counts left to edit)
+At 28e7993: guard exit 0 (107 rows) AND vitest exit 0 (15 passed) — SURVIVED
+At 044578a: **vitest EXIT 1 — KILLED** by name — "the guard must anchor exactly the six glass
+  tiers: expected [ 'card', 'elevated', 'header', …(2) ] to deeply equal [ …(3) ]"
+
+MUTATION PROBE: the fifth part the mapping flagged as unprobed by any lane
+Mutation: add `outerGlow: 'rgba(0,0,0,0.1)'` to GLASS_TIER.dark.card, guard list unchanged
+Result: **EXIT 1 — KILLED** — "every part of a tier is either anchored or named unanchored"
+Provenance: canonical source, probe worktree at 044578a. Restore: byte-identical (porcelain 0).
+```
+Bounded residual, not a finding: under the shrink the **CLI** still prints "✓ all 107 anchor rows
+match" and exits 0 — membership is necessarily test-only, because the guard is `.mjs` and cannot
+import the TS module it mirrors. The code says so at `:263-268`. The CLI is not, and cannot be,
+the authority on table completeness; the now-ungated test is, and it runs everywhere.
+
+**F21 (`readStop` truncating a longer tuple) — FIXED.**
+`:222` closes the pattern with `\s*\]`. Three unit cases at `:150-169`, all ungated: both stops of
+a 2-tuple read, a 3-stop tuple throws `tuple stops not found`, a 1-stop tuple still throws. I
+checked the regression direction the close could have caused — the phone spells
+`gradient: [...] as const,` and `PrimaryButtonGradient.dark = [Colors.dark.primaryDark,'#17527A']`,
+both of which end in `]` — and the live table is unchanged at 115/115, exit 0.
+
+### The round's two questions about the fixes' own failure surfaces
+
+**Does F18's comment-strip or `typeof` carve-out hide a real direct-half access?** No, on both
+counts — but the scan has a third hole the round left open (finding below).
+- *Comment strip* (`glass-tokens.test.ts`, `stripComments`): correct and necessary — `glass-tokens.ts`
+  and `tokens/palette.ts` spell `GLASS_TIER.dark` / `palette.dark` in prose in order to FORBID them,
+  so an unstripped scan reds on its own documentation. The stated cost — a `//` inside a string
+  truncating that line — I checked rather than accepted: no file under `ui/` spells a scheme half on
+  a line that also carries `//` inside a string literal, and the only near-hits are in `palette.ts`,
+  which the scan skips as a `SCHEME_DECLARERS` member anyway.
+- *`typeof` carve-out* (`SCHEME_HALF`'s negative lookbehind): it fires only immediately before the
+  match, so it exempts exactly `typeof palette.dark…` — the F15 construct that must keep compiling
+  after the flip — and nothing else. A value access elsewhere on a line containing `typeof` is still
+  caught. The control probe below proves the pattern still bites in the very file that carries the
+  carve-out.
+- *`SCHEME_DECLARERS` vs `TOKEN_MODULES`*: the refinement is right and is the substance of F18 —
+  scanning with `TOKEN_MODULES` would have exempted `glass-tokens.ts`, one of the two live
+  consumers, i.e. half the exposure, while reporting green.
+
+**Does the carry's ungated describe leak anything phone-dependent?** No. Every case in
+`describe("the guard's local invariants — nothing here reads the phone repo")` reads only local
+things: `Object.keys(palette.dark)`, `Object.keys(GLASS_TIER.dark)`, `Object.keys(GLASS_TIER.dark.card)`,
+and two `readField` calls over inline string literals. No `RN_ROOT`, no `readFileSync` of the sibling
+repo, no `rnAvailable()` in the block. The sibling `readStop` describe (F21) is likewise ungated and
+likewise reads only inline strings. Verified empirically as well as by reading: the suite reports
+**0 skipped** on this box, and two of the probes above were killed by cases inside that block.
+
+### New finding (fix-round-introduced)
+
+```
+[MEDIUM] F18's scheme-half scan names two records by hand and misses the third — `SHADOW_CARD`,
+         created by F19 in this same round, with the handoff written down and not picked up
+File: features/demo/ui/__tests__/glass-tokens.test.ts (`SCHEME_HALF`) ·
+      features/demo/ui/glass-tokens.ts:103-106 (`SHADOW_CARD`), :155 (`SHADOW_CARD[scheme]`) ·
+      the dropped handoff: features/demo/ui/__tests__/glass-card-recipe.test.tsx:623-629
+Code:
+  const SCHEME_HALF = /(?<!\btypeof\s+)\b(?:GLASS_TIER|palette)\s*\.\s*(?:dark|light)\b/
+Issue: F19 added a THIRD two-scheme record in this round — `SHADOW_CARD`, `as const satisfies
+  Record<ColorScheme, string>`, exported — and its author wrote the handoff explicitly: "That is
+  exactly the class W1/F18 files against `GLASS_TIER.dark`, and its source scan is the mechanism
+  that catches it: `SHADOW_CARD` belongs in that scan's list. Not duplicated here — F18's owner
+  holds that file." The two fixes landed on different branches in the same round and the handoff
+  was dropped at the merge. It matters more than the usual "widen a regex", because F19's own probe
+  Q7 recorded the severed-derivation case as SURVIVED — the runtime cannot distinguish
+  `SHADOW_CARD.dark` from `SHADOW_CARD[scheme]` while `scheme` is `'dark'`, so this source scan is
+  the ONLY mechanism that can, exactly as F18 argues for `GLASS_TIER`.
+  Completeness sweep over the same hard-coded set: the alternation also misses the bracket and
+  destructure spellings of the two records it DOES name — `palette['dark']`, `GLASS_TIER["dark"]`,
+  `const { dark } = palette`. I grepped: none is live under `ui/` today, so that half is a
+  hardening, not a hole.
+Adversarial input / sequence: any later package spends the card shadow directly — `SHADOW_CARD.dark`
+  — or severs `GLASS.shadowCard` back to its literal.
+Observable wrong behavior: every gate green, and plan §9 clause 12's one-site scheme flip is
+  quietly a two-site change; at the U8-exit light-flip worktree the card shadow stays black-on-white
+  instead of taking the phone's tinted light value, with nothing having reported anything.
+MUTATION PROBE: does the scan see a third record?
+  Provenance: canonical source, probe worktree probe-w1d-sfh-stuck at 044578a
+  Mutation: glass-tokens.ts:155 `shadowCard: SHADOW_CARD[scheme]` -> `SHADOW_CARD.dark`
+    Result: SURVIVED (exit 0, 33 passed) — including `glass-card-recipe.test.tsx:630`, which still
+    passes because the two expressions are equal at runtime
+  Negative control: same file, same shape — `const tier = GLASS_TIER[scheme]` -> `GLASS_TIER.dark`
+    Result: KILLED (exit 1) — "no production module hard-codes a scheme half (plan §9 clause 12)"
+    Four clauses: shipped code, non-equivalent, covered by the suite run, on an executed arm. The
+    only difference between the two arms is the identifier in the alternation.
+  Restore: verified byte-identical (git checkout --; git status --porcelain empty; guard exit 0 at
+    115/115; 53/53 green)
+Severity note: I did NOT take the contract's HIGH default for a survivor. There is no live
+  violation, the gate works for the two records it names, and the consequence is a broken one-site
+  flip rather than a runtime or visitor-facing failure. It is MEDIUM because the use-day — the
+  light-flip scratch worktree at U8 exit — has no reviewer, and because it is a disclosed handoff
+  rather than an oversight.
+Fix: add `SHADOW_CARD` to the alternation (one identifier). If a durable form is wanted, key the
+  scan off the marker all three share — `satisfies Record<ColorScheme, …>` — so the next
+  two-scheme record enrols itself instead of waiting on a handoff; the bracket/destructure
+  spellings are one more alternation branch, worth taking in the same edit.
+```
+
+No other fix-introduced regression in the blast radius of `47a7f90`, `e56c0f1`, `3c31600`,
+`f1491b9`, `c0458b6`, `8d65308`, `7ba1825`, `a5af4b2`, `700ce2b`, `d65a2c9` or the master carry.
+The production changes this round are the three `header-chrome` fragments moving from a
+`CSSProperties` annotation to `as const satisfies CSSProperties` (narrowing, no runtime change),
+`ACCENT_FROM`'s `satisfies` re-pointing from `colors.primaryDark` to `palette.dark.primaryDark`
+(F15 — which un-breaks the light flip and keeps F7's kill), and `SHADOW_CARD`. None adds a `catch`,
+a `??`, a default or a fallback; the demo's honesty machinery is untouched again this round.
+
+### Round 1 Summary
+CRITICAL: 0 · HIGH: 0 · MEDIUM: 1 (new, fix-round-introduced) · LOW: 0
+Prior-round dispositions: **F17 FIXED · F16 FIXED · F21 FIXED** — 3 of 3 closed, 0 PARTIAL,
+0 UNFIXED. Both of my r1 survivors were re-probed and are now KILLED.
+Verdict: **APPROVE with comments**
+
+Fallback honesty: **n/a** — no fallback or notice surface touched.
+Failure-cause distinctions preserved: **yes**, and improved — the CLI now separates drift,
+parse-failure and stuck-reader into three named reports with three explanations.
+Partial results flagged (not silently short): **yes** — the r1 answer was NO; both shrink paths
+are now membership-pinned and ungated.
+Async cancellation / stale-write safety: **n/a**.
+Operator breadcrumbs intact: **yes** — none removed; the CLI gained a stuck-reader report.
+Probes: 5 run this round — 4 KILLED (3 re-runs of r1 survivors + 1 negative control), 1 SURVIVED
+(the new MEDIUM). Restores proven byte-identical; teardown verified
+(`unlinked 549 junction(s) in 2 pass(es)` · `.pnpm` 240 → 240 · exit 0).
+
+Out-of-lane observations:
+- The `SHADOW_CARD` gap is a PIPELINE observation as much as a code one: a fix commit named the
+  file it could not edit and named the owner who should, and the round merged without anyone
+  holding that handoff. Worth a mapping-comment column for cross-seat asks.
+- Membership pins cannot move into the CLI (`.mjs` cannot import TS), so "guard exit 0" will always
+  be weaker than the suite on table completeness. The header's "exit 1 on drift or mismatch" claim
+  is now true for drift, parse-failure and stuck readers, and still silent on a shrunk table.
+- No foreign content was found in my lane file, and I wrote no other path.
+
+---
+
+## Round 0 (initial review, retained)
 
 Mode: code review. Single question: **where in this change does a real failure become invisible to
 the visitor, the operator, or the next maintainer?**

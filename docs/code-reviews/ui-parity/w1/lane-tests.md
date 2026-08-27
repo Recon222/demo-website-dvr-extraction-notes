@@ -1,4 +1,206 @@
-# Lane: tests — Wave 1 (U1.1-U1.4), PR #40 `feat/uiparity-w1` @ `28e7993`
+# Lane: tests — Wave 1 (U1.1-U1.4), PR #41
+
+## Round 1 (fix delta)
+
+Head `044578a` · fix diff `fc75577..044578a` · authority: the **W1 review round 1** fix-mapping
+comment on PR #41 (read; it covers F14-F22). Warm seat — I read only the fix commits on my
+surfaces plus what those lines now depend on.
+
+**Worktree note.** The shared tree `w1-wave` has since advanced to `1b4ac86`, so every read and
+every probe below was taken **by SHA** in my own worktree `worktrees/probe-w1d-tests` at
+`044578a` — the head I was asked to judge — not from the shared tree's working copy. That probe
+worktree survived the previous session's cutoff intact (clean, deps installed, correct SHA), so it
+was reused rather than re-cut; `git worktree list` showed no half-cut sibling to remove. Torn down
+with the script: *`unlinked 549 junction(s) in 2 pass(es)` · `.pnpm` 240 -> 240 · exit 0*.
+**Provenance for every probe: the canonical source at `044578a`.** Motion mode: default, motion-ON;
+nothing probed here is motion-gated.
+
+### Fix-delta baseline (my worktree, before any mutation)
+
+| Gate | Exit | Result |
+|---|---|---|
+| Guard, in-process | — | **115 anchors / drift 0 / parseFailed 0 / stuck 0** (`stuck` is F17's new return) |
+| Four W1 suites | **0** | **63 passed**, 0 skipped (`rnAvailable()` true — the guard RAN) |
+| `pnpm test --silent` | **0** | **3575 passed \| 10 todo (3585)** |
+| cold `tsc --noEmit` | **0** | — |
+| `node .design-sync/check-rn-parity.mjs` | **0** | — |
+
+### Per-finding status
+
+| F-ID | Finding | Status | Proof |
+|---|---|---|---|
+| F18 | MEDIUM/TRIGGER-LAPSED — `GLASS_TIER.dark` invisible (**mine**) | **FIXED** | probes A-i, A-ii, A-iii KILLED |
+| F16 | MEDIUM — hand-typed tier totals (**mine**) | **FIXED** | probes B-a/b/c KILLED, phone PRESENT **and** ABSENT |
+| F17 | MEDIUM — stuck reader invisible to the CLI (checked from the tests angle) | **FIXED** | probe C KILLED at the CLI *and* in vitest |
+| F14 | HIGH — lit-edge escape hatch (tautology check requested) | **SOUND** | no tautology; see below |
+| F19 | MEDIUM — `SHADOW_CARD`; Q7 recorded SURVIVED "covered by F18's scan" | **PARTIAL** | probe D **SURVIVED** — the claim does not hold |
+
+**0 UNFIXED.** One PARTIAL (F19's coverage claim), which is the single new finding.
+
+```
+PROBE A-i — F18: a tier consumer hard-codes the dark half
+Target:      features/demo/ui/controls/header-chrome.ts:63
+Claimed pin: glass-tokens.test.ts:248 — "no production module hard-codes a scheme half (§9 clause 12)"
+Mutation:    GLASS_TIER[scheme].header  ->  GLASS_TIER.dark.header   (identical to my r1 probe A1)
+Result:      KILLED (exit 1) — Tests 1 failed | 6 passed   [round 1: SURVIVED, exit 0]
+Provenance:  canonical source at 044578a.  Restore: verified byte-identical.
+
+PROBE A-ii — F18: the OTHER touch-point, the one my own prescription would have missed
+Target:      features/demo/ui/glass-tokens.ts:62
+Mutation:    const tier = GLASS_TIER[scheme]  ->  GLASS_TIER.dark
+Result:      KILLED (exit 1) — Tests 1 failed | 6 passed   [round 1: SURVIVED]
+  CREDIT WHERE IT IS DUE: my r1 fix text said to reuse `sourceFiles(UI_ROOT)` as-is. That helper
+  skips TOKEN_MODULES, which contains glass-tokens.ts — i.e. MY prescribed fix would have left
+  half the live exposure uncovered while reporting green. The implementer caught that and shipped
+  `sourceFiles(dir, skip)` with a separate SCHEME_DECLARERS set (glass-tokens.test.ts:62-70),
+  whose docblock names the distinction: "may hold a raw literal" and "may name a scheme half" are
+  different permissions. Better than the fix I asked for, and this probe is the proof.
+
+PROBE A-iii — F18: does the `typeof` carve-out let a REAL access through?
+Target:      the lookbehind in SCHEME_HALF, glass-tokens.test.ts:113
+Mutation:    const header = (typeof palette.dark === 'object' ? GLASS_TIER.dark : GLASS_TIER.light).header
+             — a genuine value access sharing a line with a legitimate `typeof` type position
+Result:      KILLED (exit 1) — Tests 1 failed | 6 passed
+  The lookbehind is adjacency-scoped, so it exempts only the token it directly precedes. The
+  carve-out F15 requires (`satisfies typeof palette.dark.primaryDark`) does not widen into a hole.
+  Restore: verified byte-identical.
+
+PROBE B-a/b/c — F16: tier membership, run under BOTH environments
+Claimed pin: rn-token-parity.test.ts:107 — "anchors exactly the six glass tiers and every part of one"
+  (a) a 7th tier `well` added to GLASS_TIER.dark
+  (b) a 5th part `outerGlow` added to GLASS_TIER.dark.card   (the part I never probed at r1)
+  (c) 'recessed' dropped from TIER_KEYS — the "shrink to reach green" shape
+Result, phone repo PRESENT:  ALL THREE KILLED (exit 1) — each `Tests 1 failed | 17 passed`
+Result, phone repo ABSENT:   ALL THREE KILLED (exit 1) — each `Tests 1 failed | 9 passed | 8 skipped`
+  CONTROL for the absent arm (environment only, no code mutation): exit 0,
+  `Tests 10 passed | 8 skipped` — the pin RUNS and the eight phone-reading cases skip.
+  Environment simulated in my probe copy alone by repointing RN at NO_SUCH_PHONE_REPO;
+  `rnAvailable()` printed false to confirm it took effect. Declared as an environment
+  simulation, not a code mutation.
+  The carry 044578a moved these pins into the ungated `local invariants` describe (W0/F11's
+  block) — correct: both sides are local, so gating them on the sibling repo was the same defect
+  F11 fixed for the palette list.
+  BETTER THAN I ASKED FOR: my r1 fix text proposed pinning TIER_PARTS against a hard-coded
+  four-name list. The shipped form derives the field set from Object.keys(GLASS_TIER.dark.card)
+  and forces every part to be either anchored or named in UNANCHORED = ['innerShadow']
+  (:118-128). My version would NOT have caught probe (b); theirs does.
+Provenance:  canonical source.  Restore: verified byte-identical after each of the six runs.
+
+PROBE C — F17: a light reader stuck on the dark block, from the tests angle
+Target:      .design-sync/check-rn-parity.mjs:253 — webTierScope's scheme marker pinned to 'dark: {'
+Result:      KILLED — drift 24, parseFailed 0, **stuck 24**; CLI exit 1; vitest exit 1 (3 failed | 15 passed)
+  The r1-era hole was that this shape kept `drift` empty and the CLI printed "✓ 115 rows match"
+  and exited 0. `stuck` is now computed inside checkParity(), returned beside drift/parseFailed,
+  asserted in the suite (rn-token-parity.test.ts:249,276) AND gated at the CLI
+  (:543 `if (drift.length || stuck.length) process.exit(1)`). Both surfaces fail. The docblock at
+  :272-274 also answers the obvious objection — what stops an empty `stuck` meaning "nothing was
+  examined" — by pointing at the both-halves pins that guarantee every key has a pair to compare.
+Provenance:  canonical source.  Restore: verified byte-identical.
+```
+
+**F14 — tautology check: clean, and better constructed than most pins in this campaign.** The five
+new cases render and, critically, **re-render** (`rerender` on the UPDATE path, which is where the
+two rejected forms fail and where a first-paint-only pin would have passed). Their constants come
+from a different module than the subject — `HIGHLIGHT = normColor(tier.card.highlightTop)` and
+`SIDE_BORDER = normColor(tier.card.border)` (`glass-card-recipe.test.tsx:90-91`), composed from
+`GLASS_TIER`, never retyped. Two of the five are explicit **NEGATIVE CONTROLS** asserting that the
+shorthand-then-longhand spread loses the edge on first paint, and that the lift-the-edge-out form
+loses it on update. A pin that proves the rejected alternatives actually fail is the strongest
+available answer to "is this a tautology"; it is not one.
+
+---
+
+### New finding
+
+## [MEDIUM] F18's scheme-half needle names two of the demo's three two-half records, so F19's own new `SHADOW_CARD` walks past the scan the mapping says covers it
+
+**File:** `features/demo/ui/__tests__/glass-tokens.test.ts:113` — `SCHEME_HALF`
+**Mapping claim under review:** F19's row — *"probe Q7 (severed derivation) recorded
+SURVIVED-bounded → covered by F18's scan"*
+
+**Issue.** The needle is
+
+```
+/(?<!\btypeof\s+)\b(?:GLASS_TIER|palette)\s*\.\s*(?:dark|light)\b/
+```
+
+Two hard-coded names, and one syntax form. F19 created a **third** `{ light, dark }` record in this
+same fix round — `SHADOW_CARD` (`glass-tokens.ts:103`), consumed as `SHADOW_CARD[scheme]` at
+`:155` — and did not add it to the alternation. So the scan that F19's row cites as its coverage
+cannot see the exact mutation Q7 recorded. Folded into one finding per the completeness sweep,
+because both touch-points are the same hard-coded set on the same line: the alternation misses a
+NAME, and the character class misses a SPELLING.
+
+**Evidence — SURVIVED probes:**
+
+```
+PROBE D — the Q7 coverage claim: sever the SHADOW_CARD derivation
+Target:      features/demo/ui/glass-tokens.ts:155
+Claimed pin: glass-tokens.test.ts:248 (per the PR #41 mapping's F19 row)
+Mutation:    shadowCard: SHADOW_CARD[scheme]  ->  SHADOW_CARD.dark
+Result:      SURVIVED (exit 0) — Tests 45 passed
+             (glass-tokens + glass-card-recipe + header-chrome, all green)
+  Path the input actually took: SCHEME_HALF's alternation is `GLASS_TIER|palette`. `SHADOW_CARD`
+  is neither, so `.test(src)` is false and no offender row is produced. Q7 is NOT covered.
+Provenance:  canonical source at 044578a.  Restore: verified byte-identical.
+
+PROBE D2 — the same needle, second touch-point: bracket access
+Target:      features/demo/ui/controls/header-chrome.ts:63
+Mutation:    GLASS_TIER[scheme].header  ->  GLASS_TIER['dark'].header
+Result:      SURVIVED (exit 0) — Tests 7 passed
+  The needle matches dot access only. Contrast probe A-i, the dot form of the same edit, KILLED.
+Provenance:  canonical source.  Restore: verified byte-identical.
+```
+
+**Why MEDIUM, and honestly bounded.** Nothing renders wrong today; as with the original F18, the
+cost lands on the light-flip at U8 exit (plan §9 clause 12), which is scheduled and attended. Two
+things keep it above LOW: the mapping comment **asserts** Q7 is covered, so a reader has been told
+a case is guarded that is not — the same false-assurance shape as the r1 `header-chrome.test.tsx:24`
+docblock — and F19 is the round that both created `SHADOW_CARD` and claimed the coverage, so the
+gap was introduced and blessed in one step.
+
+Bounding the second touch-point honestly: `GLASS_TIER['dark']` / `palette['dark']` appear **nowhere**
+in `features/`, `app/` or `lib/` (grepped at `044578a`), and no `dot-notation` lint rule is
+configured to force the dot form — so the bracket spelling is unused and non-idiomatic here, not
+imminent. It costs one character class to close alongside the real half of this finding, which is
+why it is folded in rather than filed separately or dropped.
+
+**Fix.** One line. Add the missing name, and the bracket spelling while the line is open:
+
+```ts
+const SCHEME_HALF =
+  /(?<!\btypeof\s+)\b(?:GLASS_TIER|palette|SHADOW_CARD)\s*(?:\.\s*|\[\s*['"])(?:dark|light)\b/
+```
+
+The durable version is to derive the alternation from a named list of the demo's two-half records,
+so the next one is a one-line append rather than a silent gap — the same shape `TOKEN_MODULES` and
+`SCHEME_DECLARERS` already use in this file, and the same lesson F16 just applied to `TIER_KEYS`.
+Either way, add a line to `SHADOW_CARD`'s docblock pointing at the scan, so the coverage claim
+becomes true where it is written.
+
+---
+
+## Round 1 summary
+CRITICAL: 0 · HIGH: 0 · MEDIUM: 1 (new) · LOW: 0
+F18 **FIXED** · F16 **FIXED** · F17 **FIXED** · F14 **SOUND** · F19 **PARTIAL** (the fix itself
+landed; its coverage claim did not).
+Verdict: **APPROVE with comments**
+
+Probes run: **12** · Killed: **10** · **Survived: 2** (D, D2 — one finding, two touch-points).
+Restores: all 12 verified byte-identical; final `git status --porcelain` = 0 and
+`git diff 044578a` = **0 lines**. Regression sweep at the same head: suite **3575 passed | 10 todo**
+exit 0, cold `tsc` exit 0, drift-guard CLI exit 0. **No fix-introduced regressions.**
+Teardown: `unlinked 549 junction(s) in 2 pass(es)` · `.pnpm` 240 -> 240 · exit 0; branch deleted.
+
+Worth carrying forward, in the fixers' favour: **F18 and F16 each shipped a strictly better fix than
+the one my r1 findings prescribed** — mine would have left `glass-tokens.ts` unscanned (wrong skip
+set) and would not have caught a fifth tier part. Probes A-ii and B-b are the evidence.
+
+Out-of-lane observations: none.
+
+---
+
+# Lane: tests — Wave 1, PR #40 @ 28e7993 — round 0 (superseded above)
 
 Mode: code review. Base `feat/uiparity-u0` @ `15e5a6f`. Read tree: `worktrees/w1-wave` (read-only).
 All probes in my own worktree `worktrees/probe-w1-tests` cut from `28e7993`, torn down with the

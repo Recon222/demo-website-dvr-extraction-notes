@@ -1,4 +1,227 @@
-# Lane: type-design - Wave 1 (U1), PR #40
+# Lane: type-design - Wave 1 (U1), PR #40/#41
+
+## Round 1 (fix delta)
+
+Warm seat. Phase branch `feat/uiparity-w1` @ `044578a`, delta `fc75577..044578a`. Authority: the
+fix-mapping comment on PR #41. Worktree HEAD is `1b4ac86`; I confirmed
+`git diff 044578a..HEAD -- '*.ts' '*.tsx' '*.mjs'` is **empty**, so the code under review is
+identical and I probed off `044578a` as briefed. Probes ran in `probe/w1d-types-fixes` (own
+worktree), torn down via `tools/worktree-remove.ps1` - "unlinked 549 junction(s) in 2 pass(es)",
+`.pnpm` 240 -> 240, exit 0. No leftover `probe-w1d-types-*` existed to clean; the two probe trees
+on disk (`probe-u2.2-recipe`, `probe-w1d-tests`) belong to other lanes and I left them alone.
+
+Baseline at `044578a` BEFORE any mutation: `tsc --noEmit --incremental false` -> **EXIT 0** -
+guard -> **exit 0, 115/115** - `rn-token-parity.test.ts` + `glass-tokens.test.ts` -> **25 passed,
+exit 0**.
+
+### My findings, per the mapping
+
+| F-ID | My r0 finding | Status |
+|---|---|---|
+| F16 | `TIER_KEYS` cardinality-only, no membership pin | **FIXED** |
+| F19 | `GLASS.shadowCard` dark-only | **FIXED** |
+| F18 | no gate on direct-half access | **PARTIAL** - see the new MEDIUM |
+| F20 | `header-chrome.ts` `CSSProperties` annotation (my LOW) | **FIXED** |
+
+---
+
+**F16 - FIXED, and better placed than I asked.** `3c31600` replaces `.toBe(6/4/24)` with two
+membership assertions against the module: `[...TIER_KEYS].sort()` vs
+`Object.keys(GLASS_TIER.dark).sort()`, and `[...anchoredFields, ...UNANCHORED].sort()` vs
+`Object.keys(GLASS_TIER.dark.card).sort()`. The second one is the part I did not ask for and it is
+the better half of the fix: it catches a FIFTH tier PART, which would otherwise reach the screen
+through U1.2's recipe with no anchor - a shape I did not probe. `UNANCHORED = ['innerShadow']`
+turns the exclusion into a NAME rather than the arithmetic difference between 4 and 5, matching
+the `SCHEME_INVARIANT` idiom the file already uses.
+
+The integrator then moved both pins into W0/F11's ungated `the guard's local invariants` describe.
+That is exactly right and worth calling out: both sides are local, so leaving them in a `skipIf`
+case would have re-created the defect F11 fixed one wave earlier.
+
+**Re-probed my r0 mutation, in both conditions.** Mutated copy: the canonical
+`features/demo/ui/tokens/glass-tiers.ts`; `TIER_KEYS` untouched. Mutation: a seventh
+`overlayTier` added to `GlassVariant` and both halves.
+
+```
+r0, 28e7993, phone present   SURVIVED in the guard test (killed only by glass-tiers.test.ts)
+r1, 044578a, phone PRESENT   KILLED  exit 1   Tests  1 failed | 17 passed (18)
+r1, 044578a, phone ABSENT    KILLED  exit 1   Tests  1 failed | 9 passed | 8 skipped (18)
+   failing case both times: "the guard's local invariants - nothing here reads the phone repo >
+   anchors exactly the six glass tiers and every part of one"
+```
+
+The `es5` follow-up `e56c0f1` (`indexOf` dedupe instead of `[...new Set()]`, which is TS2802
+under this tsconfig) is correct and the comment names the reason.
+
+**On the `.mjs` import boundary (the coordinator's question).** `TIER_KEYS` / `TIER_PARTS` arrive
+from JavaScript, so TS infers `string[]` and the comparison is a runtime `toEqual`. That is the
+right answer and there is nothing to type here: the lists are hand-maintained *because* the guard
+cannot import the TS module, and a type annotation on an untyped import would assert a shape the
+compiler never checked. The membership assertion is the only construct that can close the loop,
+and it is the one they used. No finding.
+
+---
+
+**F19 - FIXED, in the house idiom, with the right discriminant.** `7ba1825` ships
+
+```
+export const SHADOW_CARD = {
+  light: '0 3px 8px rgba(30,58,138,0.18)', // Layout.ts:123-128
+  dark:  '0 4px 8px rgba(0,0,0,0.15)',     // Layout.ts:130-136
+} as const satisfies Record<ColorScheme, string>
+```
+
+read at `:155` as `shadowCard: SHADOW_CARD[scheme]`. Answering the coordinator's question
+directly: **yes** - `Record<ColorScheme, string>` is the same discriminant `palette.ts:166` and
+`glass-tiers.ts:186` use, so a half added to or dropped from this record is a compile error the
+same way theirs are, and the consumed half resolves through the same one `scheme` site.
+
+The light value is exactly what I derived from phone `Layout.ts:122-138` independently -
+`rgba(30,58,138,0.18)`, offset 3 not 4 - and the docblock records the two things that make it not
+a re-tint of dark (`shadowOpacity: 1` there, so the colour's alpha is final; blue-tinted because
+a neutral black shadow disappears against white). The "nothing anchors this" gap is stated at the
+constant and ledgered (§95), which is the disposition I asked for.
+
+---
+
+**F20 - FIXED.** `700ce2b` puts `as const satisfies CSSProperties` on all three header fragments,
+matching `glassCard` / `glassCardNested`. `tsc` exit 0.
+
+---
+
+**F15 - a defect in MY OWN W0/F7 fix, correctly caught by another seat.** `8d65308` re-binds
+`ACCENT_FROM` from `satisfies typeof colors.primaryDark` to
+`satisfies typeof palette.dark.primaryDark`. `colors` is `palette[scheme]`, so my W0 fix tied a
+scheme-INDEPENDENT constant to the CONSUMED scheme and turned plan section 9 clause 12's one-site
+flip into a hard TS1360 in this very module. I did not catch that in W0 or in my W1 round-0 pass;
+the finding is correct and I am recording it against my own prior work.
+
+Probed both halves of their claim rather than reading it (one mutation each, canonical files):
+
+```
+scheme = 'light'                          tsc EXIT 0   the flip compiles again
+palette.dark.primaryDark -> '#1F6B9A'     tsc EXIT 2   glass-tokens.ts(77,31): TS1360:
+                                                       Type '"#1F6B99"' does not satisfy the
+                                                       expected type '"#1F6B9A"'
+```
+
+Both hold: the flip is restored AND F7's kill is preserved. The binding is now to the half the
+constant actually belongs to, which is what it should always have been.
+
+---
+
+## F18 - PARTIAL, and one new MEDIUM
+
+The gate exists, and the prescription they shipped is **better than the one I wrote**: I said to
+reuse `sourceFiles(UI_ROOT)` with `TOKEN_MODULES` allow-listed, and `c0458b6` points out that
+`TOKEN_MODULES` exempts `glass-tokens.ts` - one of the exactly two production consumers the scan
+exists to watch. Scanning with my list would have left half the live exposure uncovered while
+reporting green. `sourceFiles(dir, skip)` plus a separate `SCHEME_DECLARERS` is the right shape,
+and the `typeof` carve-out is necessary (F15 requires a scheme-independent
+`satisfies typeof palette.dark.primaryDark` in the scanned file). Comment-stripping is required
+too, since three of the four files spell the forbidden text in prose in order to forbid it.
+
+**Ruling on `SCHEME_DECLARERS` being a string list (the coordinator's question): correct as
+shipped, no finding.** There is no type for "a path in this repo", the sibling `TOKEN_MODULES` is
+the identical `ReadonlySet<string>` shape and is itself a review-hardened decision that U0.5's row
+explicitly forbids relaxing into a predicate, and both failure directions of a stale entry are
+safe: a renamed declarer stops being exempt and REDS, a path that does not exist exempts nothing.
+Nothing here is typeable in a way that would prove anything.
+
+What is not closed is the regex's reach.
+
+```
+[MEDIUM] The scheme-half scan matches dot access only, so the two evasions closest in shape to
+         the CORRECT idiom pass it
+Type: SCHEME_HALF
+File: features/demo/ui/__tests__/glass-tokens.test.ts:112 -
+      /(?<!\btypeof\s+)\b(?:GLASS_TIER|palette)\s*\.\s*(?:dark|light)\b/
+      asserted at :244-249, titled "no production module hard-codes a scheme half (plan §9
+      clause 12)"
+Invariant violated / permitted invalid state: the case's title claims coverage of hard-coding a
+  scheme half; the pattern covers one spelling of it. Completeness sweep over every form that
+  names a half in a value position, each probed as a single mutation at `glass-tokens.ts:115`
+  (the canonical file, the exact line the scan exists to watch):
+    GLASS_TIER.dark        -> KILLED   (the form I reported and they fixed)
+    GLASS_TIER['dark']     -> SURVIVED  exit 0, "Tests 7 passed (7)"
+    const { dark: tier }   -> SURVIVED  exit 0, "Tests 7 passed (7)"
+Construction site: any of the six later packages `glass-tiers.ts:2` names as consumers. The
+  bracket form is the one that matters: the MANDATED idiom is `GLASS_TIER[scheme]`, so a
+  developer hard-coding a half by copying the correct shape writes `GLASS_TIER['dark']` far more
+  naturally than `GLASS_TIER.dark`. The evasion nearest the right answer is the one that passes.
+Downstream consequence: nothing today - production is clean, and I re-grepped to confirm the two
+  live sites are still `GLASS_TIER[scheme]` (`glass-tokens.ts:115`, `header-chrome.ts:63`). The
+  cost is that this scan is the ONLY mechanism for D2's central claim for eight more waves, and
+  it reports green over two thirds of the shapes it is titled to catch. As the docblock itself
+  says: while the demo renders dark the two expressions are the same object, so no behavioural
+  pin can ever see it and the source scan is all there is.
+Fix: widen the accessor half of the pattern - `(?:\.\s*|\[\s*['"])` before the half name, with
+  the closing quote/bracket optional-matched - and add a destructuring alternative
+  (`\{[^}]*\b(?:dark|light)\b[^}]*\}\s*=\s*(?:GLASS_TIER|palette)`). Both stay inside the
+  existing `it`; no new mechanism, and the two probes above become its negative controls.
+```
+
+---
+
+## The carry's `INVARIANT` typing - ruling
+
+`rn-token-parity.test.ts:286`:
+`const INVARIANT: readonly PaletteToken[] = ['onError', 'onPrimary']`, asserted equal to the
+guard's now-exported `SCHEME_INVARIANT`.
+
+**The integrator's argument is right, and what they shipped is the correct response to it.**
+Typing the `.mjs` IMPORT would prove nothing - annotating an untyped JS export as
+`readonly PaletteToken[]` is an assertion the compiler accepts without checking, i.e. exactly the
+lie my W0 LOW was trying to remove. Declaring a separately-typed local literal and asserting
+runtime equality against the guard's array is the only construction that closes both directions:
+a typo in the MIRROR is a compile error (TS2322 on the literal), and a typo in the guard's real
+list - the array that actually excludes, at `check-rn-parity.mjs:503` - reds the `toEqual`. The
+`.mjs` array staying the one thing that excludes (F17) is also right; two lists that both excluded
+would be the drift surface.
+
+This supersedes my W0 `new Set<PaletteToken>` shape, which no longer applies once the exclusion
+moved into the guard. No finding.
+
+Residual, not filed: `INVARIANT` must be hand-maintained in sorted order, because the assertion
+compares `[...SCHEME_INVARIANT].sort()` to an unsorted `[...INVARIANT]`. It is sorted today and a
+mistake fails immediately and legibly; `.sort()` on both sides would remove the coupling.
+
+---
+
+## Regression sweep over the fix commits' blast radius
+
+- **`glass-tokens.ts` gained a `palette` VALUE import** (F15) alongside `colors`, `scheme` and the
+  `ColorScheme` type. No cycle: `palette.ts` still imports nothing, and `glass-tiers.ts`'s only
+  import is `import type`. `tsc` exit 0.
+- **`SCHEME_INVARIANT` moved into the `.mjs`** and is now consumed by `checkParity()` itself
+  (F17). The test imports it rather than restating it - one place, one meaning. Guard exit 0,
+  115/115.
+- **`sourceFiles` gained a second parameter** with `TOKEN_MODULES` as its default, so the
+  pre-existing banned-literal scan is unchanged by construction. Both scans green at baseline.
+- **Two header-tier literals added to `BANNED`** (F22). No interaction with the type surface;
+  `glass-tokens.test.ts` 7/7 green.
+- Baseline at the merged head: `tsc` exit 0 - guard exit 0, 115/115 - the two token suites 25/25.
+
+---
+
+## Type Design Summary (Round 1 fix delta)
+CRITICAL: 0 - HIGH: 0 - MEDIUM: 1 - LOW: 0
+Prior-round findings: F16 **FIXED** - F19 **FIXED** - F20 **FIXED** - F18 **PARTIAL** (0 UNFIXED)
+Verdict: **APPROVE with comments**
+
+| Check | Result |
+|---|---|
+| Fixes address the finding, not the symptom | **yes** - F16 and F18 both shipped a wider fix than I prescribed, each for a reason I verified |
+| Fix-introduced regressions in blast radius | **none** |
+| Prescriptions refuted on evidence | **two, both correct** - F18's exemption list (mine would have skipped `glass-tokens.ts`) and the `INVARIANT` typing argument |
+| Defect found in my own prior fix | **one** - W0/F7 bound a scheme-independent constant to the consumed scheme; F15 caught and fixed it, verified both ways |
+| Mutation probes this round | 5 - 3 KILLED, **2 SURVIVED** (the two F18 evasion forms, folded into one MEDIUM). Restores proved byte-identical (`git diff` 0 bytes); probe worktree torn down with the script's proof line |
+
+Out-of-lane observations: none new this round.
+
+---
+
+## Round 0 (initial review) - retained below
 
 Mode: **code review**, round 1. Branch `feat/uiparity-w1` @ `28e7993`, based on `feat/uiparity-u0`
 @ `15e5a6f`; diff `feat/uiparity-u0...feat/uiparity-w1`. Read in the shared worktree `w1-wave`.
