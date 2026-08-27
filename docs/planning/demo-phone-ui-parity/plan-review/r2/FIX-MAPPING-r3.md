@@ -1,7 +1,7 @@
 # Plan review r2 — FIX MAPPING r3
 
 **Round:** 3 · **Verdict under repair:** BLOCK (1 BLOCKER / 3 MAJOR / 7 MINOR)
-**Disposition: 11 FIXED · 0 REFUTED · 0 PARTIAL · 0 unresolved.** All 24 §4 edits applied, plus the D1 checkpoint restatement.
+**Disposition: 12 FIXED · 0 REFUTED · 0 PARTIAL · 0 unresolved.** All 24 §4 edits applied, plus the D1 checkpoint restatement and the post-r3 REAL-R3-1 arithmetic correction (appended below).
 **Files:** `01-master-ui-parity-plan.md` 633 → **638** · `00-ui-parity-matrix.md` **755** (in place) · `02-ratification-brief.md` (one line) · **Not committed.**
 
 V-47 taken as **option (A)** per R-4 — (B) would reopen an owner ruling, which is not a writer's edit.
@@ -19,6 +19,12 @@ V-47 taken as **option (A)** per R-4 — (B) would reopen an owner ruling, which
 | **V-55** | MINOR | **FIXED** | plan U0.1 `errorLight` clause | The false "before U3.1 exists" reason replaced with *"it is the one `*Light` the danger fill (A52) needs from the palette module itself, and U0.5's banned-literal guard forbids hardcoding it."* Outcome (one owner = U0.1) unchanged. |
 | **V-56** | MINOR | **FIXED** | plan U0.1 `primaryLight` | → *"41 sites across **19** files, 4 of them lowercase (the 20th file, `mapTokens.ts`, holds only the keyed definition)."* |
 | **V-57** | MINOR | **FIXED** | plan U0.4 Scope; matrix A96 | U0.4 → *"Fix the **remaining** defects (**U0.0 already landed the `PARSE-FAILED` degrade — do not re-touch `check-rn-parity.mjs:74-75`**) … U0.0's degrade is this package's precondition; U0.4 **proves** it with a deliberately-broken anchor."* Matrix A96 gains the ownership line. Double-ownership closed. |
+
+## Appended after r3 — REAL-R3-1 (MEDIUM)
+
+| V-ID | Sev | Disposition | Doc : where | What landed |
+|---|---|---|---|---|
+| **REAL-R3-1** | MEDIUM | **FIXED** | plan U1.1, U0.4 (3b), §6.6 gate 1, §9 DoD 1, §3 D3; matrix D3 item 4, A96 ×2 | **U1.1's arithmetic contradicted its own parenthetical and the lane is right: "both gradient stops + `border` + `highlightTop`" is 4 keys × 6 tiers = 24 KEYS, not 12** — so 48 anchor rows across both halves, not 24. Corrected in U1.1 and propagated to every running total: **stage figures `~15 → +24 → +4 → +1`**, **final `~44 keys / ~88 anchor rows`** (was `~32 / ~64`). Also recorded *why* it is 4 and not 5 per tier: **`innerShadow` is deliberately not anchored** — it is an inset shadow the guard cannot read as a flat value off either side. |
 
 ## Also in this round — the device-pass checkpoint conflict
 
