@@ -6,6 +6,7 @@ import { MapCanvas, type MapCanvasHandle } from '@/features/demo/ui/screens/map/
 import { buildFitPoints, buildMarkers } from '@/features/demo/ui/screens/map/buildMarkers'
 import { MapBottomSheet } from '@/features/demo/ui/screens/map/MapBottomSheet'
 import { MapControls } from '@/features/demo/ui/screens/map/MapControls'
+import { MapFiltersSheet } from '@/features/demo/ui/screens/map/MapFiltersSheet'
 import { LocationDetailCard } from '@/features/demo/ui/screens/map/LocationDetailCard'
 import { CallConfirmSheet } from '@/features/demo/ui/screens/map/CallConfirmSheet'
 import { DemoNotification } from '@/features/demo/ui/screens/map/DemoNotification'
@@ -17,6 +18,7 @@ import {
   countActiveFilters,
   type MapFilterState,
 } from '@/features/demo/ui/screens/map/mapFilters'
+import type { LocationMapStatus } from '@/features/demo/engine/store/selectors'
 import { DEFAULT_MAP_CENTER, DEFAULT_PROXIMITY_RADIUS, type RadiusPreset } from '@/features/demo/ui/screens/map/mapTokens'
 import type { ProximityResult } from '@/features/demo/ui/screens/map/mapProximity'
 
@@ -134,6 +136,30 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
   // ---- filters (phone useMapFilter) ---------------------------------------------------------
   const [filters, setFilters] = useState<MapFilterState>(EMPTY_MAP_FILTERS)
 
+  /**
+   * Filters-sheet visibility — the NEW component-local UI state D20 names this package for
+   * (plan §2, §5's U5.3 row). Phone `MapHost.tsx:163-167`, which owns exactly the same boolean
+   * and calls it exactly this.
+   *
+   * It is UI state and nothing more: it touches no filter VALUE, and — deliberately — neither
+   * `selectedId` nor `sheetMode`. U5.4's §11 defect 2 records why that matters. `LocationRow`
+   * indicates selection not at all now, which is only safe while a row that is IN `display.items`
+   * cannot render inside the LIST: `contentMode` is `detail` whenever `selectedItem` resolves
+   * (`:259` below), so the list is unmounted exactly when a selected row would be visible in it.
+   * Opening or closing this sheet must never write either of those two, or that stops holding and
+   * the demo silently grows a selection cue nothing paints.
+   */
+  const [filtersVisible, setFiltersVisible] = useState(false)
+  /**
+   * Stable, not inline arrows, and `onClose` is the one that needs to be: `GlassBottomSheet`
+   * lists it as a dependency of the effect that installs the Escape listener
+   * (`GlassBottomSheet.tsx:248-255`), so a fresh identity per render would tear down and re-add a
+   * document-level `keydown` handler on every commit of this screen. Phone `MapHost.tsx:166-167`
+   * spells both the same way.
+   */
+  const openFilters = useCallback(() => setFiltersVisible(true), [])
+  const closeFilters = useCallback(() => setFiltersVisible(false), [])
+
   // ---- proximity (phone useProximity) -------------------------------------------------------
   // Turf arrives with the module, which is fetched on the first activation so it never lands in
   // the demo's own chunk. `proximityModule` is state (not just a ref) so the first computed
@@ -194,6 +220,10 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
     setSelectedId(null)
     setSheetMode('list')
     setSnapIndex(0)
+    // The phone remounts `MapHost` per viewed case, so its `filtersVisible` is recreated false
+    // with everything else. Leaving a filters sheet open over a case whose filters just reset
+    // would be a sheet describing state that no longer exists.
+    setFiltersVisible(false)
   }, [viewerCaseId])
 
   // ---- projection ---------------------------------------------------------------------------
@@ -290,6 +320,36 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
   }, [])
 
   const handleClearFilters = useCallback(() => setFilters(EMPTY_MAP_FILTERS), [])
+
+  /**
+   * The sheet's status chips emit the FULL updated set (A82), so this is a straight write — the
+   * add/remove decision and the registry re-ordering both happen in the sheet, where the tap is.
+   */
+  const handleStatusToggle = useCallback((statuses: readonly LocationMapStatus[]) => {
+    setFilters((prev) => ({ ...prev, statuses }))
+  }, [])
+
+  /**
+   * The footer's "Clear All" — filters AND proximity, in one press. Phone
+   * `MapHost.tsx:418-423`, whose own comment is *"resets status + search filters AND deactivates
+   * an active proximity ring in one tap — everything the badge counts plus the visible search
+   * text"*.
+   *
+   * DISTINCT from `handleClearFilters` above, which the sheet's EMPTY state offers and which
+   * must stay filters-only: that button appears when a status/text filter emptied the list
+   * (`emptyReason === 'filters'`), and turning proximity off from it would undo something the
+   * visitor did not ask about. The phone keeps the same split — `clearFilters` and
+   * `handleClearAllFilters` are two functions there too.
+   *
+   * `setProximityActive(false)` unconditionally rather than behind the phone's
+   * `if (proximityIsActive)`: an identical `useState` write is an `Object.is` bail-out, so the
+   * guard would buy nothing and cost this callback a dependency (and with it a fresh identity on
+   * every proximity flip).
+   */
+  const handleClearAllFilters = useCallback(() => {
+    setFilters(EMPTY_MAP_FILTERS)
+    setProximityActive(false)
+  }, [])
 
   const handleToggleCameras = useCallback(() => {
     if (selectedItem?.kind !== 'location') return
@@ -393,13 +453,12 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
             onProximityDeactivate={handleProximityToggle}
             locationCount={locationCount}
             filteredCount={filteredCount}
-            /* SEAM(U5.3): `onOpenFilters` attaches here — `() => setFiltersVisible(true)` beside a
-               `<MapFiltersSheet>` mounted next to `<MapBottomSheet>` below. Until that package
-               lands the prop is omitted on purpose, so the chrome renders no filters button at
-               all rather than one that swallows every press (§49a, the rule `onChangeCase` /
-               `onGoToLocation` / `onExportMap` above already follow). Status filters, the radius
-               presets and Clear-all are unreachable for exactly one package; search, proximity
-               long-press, the chip exit and the sheet's own Clear route all stay live. */
+            /* U5.3 closed the SEAM(U5.3) that stood here: the divider, the filters button and its
+               badge now render, and the proximity chip's body becomes pressable. `onOpenFilters`
+               stays OPTIONAL on `MapControls` — U5.2's §49a gating is the reason the intervening
+               package shipped no button that swallowed a press, and `onChangeCase` /
+               `onGoToLocation` / `onExportMap` follow the same rule. */
+            onOpenFilters={openFilters}
           />
           <MapBottomSheet
             items={display.items}
@@ -415,6 +474,34 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
             onExportMap={onExportMap}
             exportMapPending={exportMapPending}
             exportMapBlocked={exportMapBlocked}
+          />
+          {/**
+            * The filters sheet. Always MOUNTED, `visible`-gated — `GlassBottomSheet` needs
+            * `visible` to go false while it stays mounted or the exit never plays (U4.1 §8.2).
+            *
+            * It paints on the shell's own `PICKER_SHEET_Z` 31/32, which is not a choice this
+            * package makes: D14 froze that number and three pins read it. It lands coherently in
+            * the demo's map scheme all the same — above the bottom sheet (20), the map error
+            * overlay (25) and the case picker (30), below the call sheet (48) and below
+            * `DemoNotification` (60), which is the one that must stay readable over it because it
+            * is what reports a proximity failure the sheet's own toggle caused.
+            */}
+          <MapFiltersSheet
+            visible={filtersVisible}
+            onClose={closeFilters}
+            activeStatuses={filters.statuses}
+            onStatusToggle={handleStatusToggle}
+            proximityActive={proximityActive}
+            proximityRadius={proximityRadius}
+            /* The SAME function the chip's ✕ receives. This is the caller that brings its ON
+               branch — and `PROXIMITY_CENTRED_ON_VIEW` with it — back into reach after U5.2
+               deleted the toggle pill, including on a token-less mount where there is no canvas
+               to long-press. */
+            onProximityToggle={handleProximityToggle}
+            onRadiusChange={setProximityRadius}
+            onClearAll={handleClearAllFilters}
+            locationCount={locationCount}
+            filteredCount={filteredCount}
           />
           {pendingCall && (
             <CallConfirmSheet
