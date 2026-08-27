@@ -1,5 +1,180 @@
 # Lane: web — W2 (phases U2 + U3 + U4), PR #42
 
+## Round 2 (rider delta)
+
+Head reviewed: `feat/uiparity-w2` @ `e511482`. Rider diff `fa76834..e511482`. Shared worktree
+`worktrees/w2-wave`, read-only. Scoped to my two round-1 PARTIALs: **F29'** (`bb7182c`) and
+**F34'** (`530aaf6`).
+
+Read this round, and nothing more: the two commits in full including their bodies; the three
+changed sources at the current SHA; the two precedents they cite, opened at source
+(`RadioGroup.tsx:170-195` on the phone, `Layout.ts:155-172`); and `_captures/w2/DIFF.md` §f1-§f5,
+which landed at 11:45 with the `after-fixed/` set and did not exist when I wrote round 1.
+
+**Rendered proof, taken rather than waited for.** The coordinator said to judge the mechanism and
+not to block on verification's re-cut. I did both: probe worktree `probe-w2r-web-f29` @ `e511482`
+(cut + installed 7 s), `pnpm dev --port 3012`, the repo's own Playwright harness at the
+verification seat's own settings (1440×1000, DSR 2, `reducedMotion: 'reduce'`, `usePhoneScale()`
+pinned to 1.0). Two drivers. Probe tree `git status --short` empty at teardown; removed with
+`tools/worktree-remove.ps1` — *"unlinked 549 junction(s) in 2 pass(es) · .pnpm 240 → 240 · OK"*;
+branch deleted; both driver scripts deleted from `_pw`.
+
+---
+
+### F29' [HIGH] — **FIXED.** Measured at `e511482`: the overflow is gone, to the pixel
+
+`bb7182c` ships three declarations, and all three are live in the browser:
+
+```
+                      btn min-width   label min-width   label overflow-wrap
+fc-profile-forensic       0px              0px              break-word
+fc-profile-limited        0px              0px              break-word
+fc-profile-canvas         0px              0px              break-word
+```
+
+The geometry, same pane and same measurement as my round-1 run:
+
+| | round 1 (`250e12f`) | round 2 (`e511482`) |
+|---|---|---|
+| pane `clientW` / `scrollW` | 342 / **363** | 342 / **342** |
+| group `clientW` / `scrollW` | 342 / **363** | 342 / **342** |
+| group right vs pane content inset | 413 vs 413 | 413 vs 413 |
+| `fc-profile-canvas` right edge | **433.8** (20.8px past) | **413.0** (flush) |
+| option widths | 120.3 / 114.9 / 111.6 | **108.7 / 108.7 / 108.7** |
+| option heights | 44 / 44 / 44 | **67.1 / 67.1 / 67.1** |
+| label box / label `scrollW` | — / 58, 53, 50 | 46.7 / **47, 47, 47** |
+| label height | 24.5 (one line) | **49.1 (two lines)** |
+
+`scrollWidth − clientWidth = 0` on both the group and the pane. The third chip's right edge is
+now **413.0**, exactly the pane's content inset, and the screenshot confirms every border is
+inside the frame — the clipped "Canvas" chip of rounds 0/1 is gone. `scrollW == clientW` on every
+label means nothing spills either: the word breaks *inside* its box rather than painting over the
+neighbour's border, which is the specific failure mode declaration 3 exists to prevent. The three
+cells are equal width and equal height, so `stretch` is doing what the docblock says it does.
+
+**The mechanism argument is correct and the third declaration is load-bearing.** `min-width: auto`
+is the default on *every* flex item and there are two nested here — releasing the inner span while
+the `<button>` kept its own floor is exactly why F29 half-worked, and my round-1 measurement said
+the same thing independently. `overflow-wrap: break-word` does not lower a min-content
+contribution, so it could not have substituted for either `minWidth: 0`; equally, without it a
+46.7px box against a 47px word would have spilled. Three, not one, and the commit body's own
+arithmetic (~48.7px predicted against 46.7px actual — it did not count the 1px borders) was close
+enough to be doing real work.
+
+**Docblock honesty — checked at both cited sources, and it holds.**
+- The phone precedent is verbatim. `RadioGroup.tsx:178-191` says *"~39px of text budget at 360dp"*,
+  *"the overflow becomes a controlled two-line wrap"*, *"`optionsContainer` sets no `alignItems`,
+  so the default `stretch` keeps the cells the same height"*, and *"Inert at the 2-up call site …
+  where the label never exceeds its box"*. Every clause the docblock leans on is there.
+- The verification citation resolves. `_captures/w2/DIFF.md` §f2 does say **x = 781** for the radio
+  row against **x = 739** for a normal pane row, on all four settings shots, byte-identical between
+  `7bcb553` and `250e12f`. (My first grep missed it only because the file spells it `x = 781`.)
+- The capture gate was true when written and is now conservative. The note says *"no capture of
+  this fix exists yet … this note claims a mechanism, not an outcome"*. That was correct at
+  `bb7182c`; my run above is that outcome, and the next re-cut will be the seat's own. Under-claiming
+  is the safe direction and I am not filing it — but the sentence can be retired when the re-cut lands.
+
+This is the third note at these two sites and the first one that separates what was measured from
+what was owed. Two rounds ago the comment asserted a fix that half-worked; this one asserted a
+mechanism and the mechanism is right.
+
+**Blast radius, checked.** `minWidth: 0` is added only inside the `direction === 'row'` branch, so
+the `column` consumers are untouched by construction — and `_pane-chrome.tsx:211-222`'s
+`PaneRadioGroup`, the demo's other settings radio, passes `direction="column"` explicitly. The only
+other `row` consumer is `RequestedScopeScreen.tsx:57-58` at 2-up: (342−8)/2 = 167px per chip minus
+60px of fixed chrome leaves a ~105px label box against "Real Time"/"DVR Time" at ~70px, and both
+contain a space, so neither `break-word` nor the shrink ever engages — which is precisely what the
+phone's own comment predicts for its 2-up site. No other file changed.
+
+### F34' [MEDIUM] — **FIXED. F34 is now complete, 4 of 4**
+
+`530aaf6` closes the fourth touch-point — the one the fix round left open because the vetted
+Owner line assigned it to a seat whose dispatch never named it. Read at the current SHA
+(`CentredDialog.tsx:71-77`):
+
+```
+export const DIALOG_SHADOWS = {
+  dark:  '0 8px 40px rgba(0,0,0,0.5)',            // Layout.ts:165-171
+  light: '0 8px 28px rgba(30, 58, 138, 0.15)',    // Layout.ts:158-163
+} as const satisfies Record<ColorScheme, string>
+export const DIALOG_SHADOW = DIALOG_SHADOWS[scheme]
+```
+
+**Verified against the phone at source, both halves, exactly** (`Layout.ts:157-172`):
+
+| | shadowColor | offset | opacity | radius | → CSS |
+|---|---|---|---|---|---|
+| `dialog.light` | `rgba(30, 58, 138, 0.15)` | `0 8` | 1 | 28 | `0 8px 28px rgba(30, 58, 138, 0.15)` ✓ |
+| `dialog.dark` | `#000` | `0 8` | 0.5 | 40 | `0 8px 40px rgba(0,0,0,0.5)` ✓ |
+
+The 0.15 × 1 fold is the same RN→CSS mapping `button-recipe.ts:167-174` documents and
+`SHEET_SHADOWS` used. `DIALOG_SHADOW` keeps its name and its dark value, so `dialogSurface`'s
+composed `boxShadow` (`:107`) is byte-identical and nothing the demo renders today moves.
+
+Two claims in the commit body that I checked rather than took:
+- **The radius differs between halves (40 dark / 28 light) and it is the phone's**, not a
+  derivation — `Layout.ts:162` vs `:169`. Confirmed. It is also the one place `DIALOG_SHADOWS`
+  could not have been copy-pasted from `SHEET_SHADOWS`, whose light half is also 28 but for its
+  own reason.
+- **The sign does not flip.** Both halves are `0 8px` (downward), where `SHEET_SHADOWS` is
+  `0 -8px` in both. Confirmed at source. Pinning that rather than assuming it is the right call:
+  phone §1.5 records the shipped bug where Phase 5 put `sheet` on a dialog and inverted the cast,
+  and a `Record` that silently inherited the sheet's sign is exactly how that recurs.
+
+The `as const satisfies Record<ColorScheme, string>` closer also matches the `SHADOW_CARD`
+(W1/F19) and `SHEET_SHADOWS` (W2/F34) shape, so all three shadow records in the demo now read the
+same way. My round-1 PARTIAL is discharged.
+
+---
+
+### Sanity on the three the re-cut settles — my round-1 browser reads and the captures agree
+
+| Finding | My round 1 (Chromium at `250e12f`) | Re-cut `DIFF.md` | Agreement |
+|---|---|---|---|
+| **F27** | border vs card **4.35:1**, vs own fill 5.31 | §f3 — worst ground **4.34:1** (was 1.41) | ✓ to rounding, two independent implementations |
+| **F43** | `[data-dialog-scrim]` = `rgba(0, 40, 83, 0.9)` | §f4 — deep navy `colors.overlay` on **all five** captured backdrops | ✓ and broader than mine |
+| **F41** | action row `gap: 16px`, Cancel / Export Anyway | §f5 — 8 → 16 CSS px on both photographable rows | ✓ |
+
+All three FIXED, confirmed twice by different methods. §f6 reports every non-target shot at or
+under its same-sha control, which is the regression check I could not run.
+
+---
+
+## Web Summary (Round 2 — rider delta)
+
+CRITICAL: 0 · HIGH: 0 · MEDIUM: 0 · LOW: 0 — **no new findings**
+Round-1 PARTIALs: **F29' FIXED** (rendered: 363 → 342 scrollWidth, third chip 433.8 → 413.0 flush,
+two-line wrap at equal heights, nothing clipped and nothing spilling) · **F34' FIXED** (4/4;
+light half exact at phone source, radius asymmetry and no-sign-flip both correct)
+Also confirmed FIXED, twice over: **F27**, **F43**, **F41**
+
+Verdict: **APPROVE**
+
+Marketing<->demo isolation: **preserved** — the rider diff touches only `features/demo/ui/**`.
+Bundle impact: **none** — no dependency, import-shape or lazy→static change in either commit.
+Browser-resource cleanup: **n/a** — no effect, listener, timer or observer touched.
+Accessibility: **no regression, one improvement.** The 3-up group no longer paints a control partly
+off-frame; every chip is now fully within the phone screen and reachable, and the two-line labels
+keep every character on screen rather than ellipsing a profile name.
+Style-convention adherence: **correct half; lifted rules intact.** Both riders take the phone's own
+values (`RadioGroup.tsx:178-191`'s wrap outcome, `Layout.ts:157-172`'s two shadow halves) rather
+than restyling around them — notably, the cheaper alternative of narrowing the chips' lifted
+`spacing.md` padding was correctly NOT taken.
+
+Out-of-lane observations:
+- The wrap breaks mid-word at 3-up — "Foren/sic", "Limite/d", "Canva/s". Cosmetically poor, and it
+  is the phone's own outcome for the same three single-word labels, so I am not filing it. Worth an
+  owner glance at the re-cut: if it reads badly, the lever is the label font size or the ring
+  margin, not the lifted `spacing.md` padding.
+- `_captures/w2/DIFF.md`'s method table flags that `06-p4-media.js`'s `\b` repair lives on
+  `master` @ `07c7ec5` but **not** on `feat/uiparity-w2`, carried as the capture worktree's single
+  uncommitted edit — *"land it on the wave branch or the next W2 re-cut regresses"*. Not my lane;
+  surfacing it because it will fire silently at W3.
+- Round 1's foreign stale worktree admin entry `probe-u6.2-redgreen` is still there — it printed
+  the same prune error during this round's teardown too. It needs `tools/worktree-remove.ps1`.
+
+---
+
 ## Round 1 (fix delta)
 
 Head reviewed: `feat/uiparity-w2` @ `250e12f` (repo HEAD `c1892d1`, one docs-only commit past it).

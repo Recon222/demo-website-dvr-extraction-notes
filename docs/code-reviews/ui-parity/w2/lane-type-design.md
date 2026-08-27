@@ -1,5 +1,162 @@
 # Lane: type-design — Wave 2 (U2 + U3 + U4), PR #42
 
+## Round 2 (rider delta)
+
+Warm, scoped to F38'. Phase branch `feat/uiparity-w2` @ `e511482`, rider diff
+`fa76834..e511482`. Authority: the coordinator's rider brief plus the round-1 mapping comment.
+Probes ran in `probe/w2r2-types-frag` (own worktree off `e511482`), torn down via
+`tools/worktree-remove.ps1` — **"unlinked 549 junction(s) in 2 pass(es)"**, `.pnpm` 240 → 240,
+exit 0; branch deleted.
+
+Baseline at `e511482` BEFORE any mutation: `rm -f tsconfig.tsbuildinfo && pnpm exec tsc --noEmit
+--incremental false` → **EXIT 0**; `ModalShell.test.tsx` → **18 passed**.
+
+### F38' — **FIXED**. The census is closed; every module-level fragment is readonly.
+
+Re-ran my round-0 census at the rider head, across all six files the finding named:
+
+| File | `: CSSProperties` annotated | `as const satisfies CSSProperties` |
+|---|---|---|
+| `controls/sheet-chrome.ts` | 0 | **13** |
+| `screens/_shared.tsx` | 2 (both function-LOCAL) | **6** |
+| `controls/EmptyState.tsx` | 0 | **3** |
+| `controls/CentredDialog.tsx` | 0 | **2** |
+| `controls/Banner.tsx` | 0 | **2** |
+| `controls/button-recipe.ts` | 0 | — (`SIZES` closed in r1 as `Record`) |
+
+**Zero module-level fragments remain annotated.** `530aaf6` closed `dialogSurface` /
+`dialogScrim`, `f139eb9` closed all six in `_shared.tsx` (including the two module-locals `grid`
+and `modalHeaderIconBtn` that were touch-points rather than headline sites), `9c31793` closed the
+Banner pair and all three of `EmptyState`.
+
+Verified by mutation rather than by grep — PROBE E, a throwaway
+`features/demo/ui/zz-probe-mut.ts` in the probe worktree, **nine** assignments to every exported
+fragment across the three files, one compiler run:
+
+```
+sheetSurface.background / sheetScrim.inset / sheetHeaderBand.padding
+dialogSurface.padding / dialogScrim.background
+modalScrim.background / modalSheet.top / modalSheetEnter.animation / modalHeaderBar.padding
+  -> 9 of 9 error TS2540: Cannot assign to '<key>' because it is a read-only property
+  -> ZERO non-TS2540 diagnostics on the probe file
+Probe file deleted; `git status --short` empty afterwards.
+```
+
+Round 0 had three of these compiling; round 1 closed one (`sheetSurface`); round 2 closes the
+remaining eight. The finding is answered in full.
+
+**Named residuals — accepted, not re-filed.** Three `: CSSProperties` sites survive and all three
+are function-LOCALS, freshly constructed per render, with no shared reference to corrupt:
+`screens/_shared.tsx:552` (`iconBtn`), `:730` (`Toggle`'s `track`), and
+`controls/choice-controls.tsx:255` (`CheckboxBox`'s `style`). My round-0 finding scoped itself to
+"module-level" and listed these nowhere; they are correctly untouched and are not a residual so
+much as a boundary that was drawn right. `openDialogs: object[]`
+(`CentredDialog.tsx`) is likewise untouched, as I accepted in round 0 — it is a runtime LIFO
+stack whose mutation IS the mechanism.
+
+### F34's `DIALOG_SHADOWS` / `SHEET_SHADOWS` — confirmed, and in the house shape
+
+Not my finding (web lane), confirmed at the coordinator's request because the SHAPE is mine to
+judge:
+
+```ts
+export const DIALOG_SHADOWS = { dark: …, light: … } as const satisfies Record<ColorScheme, string>
+export const DIALOG_SHADOW  = DIALOG_SHADOWS[scheme]      // CentredDialog.tsx:71-77
+export const SHEET_SHADOWS  = { dark: …, light: … } as const satisfies Record<ColorScheme, string>
+export const SHEET_SHADOW   = SHEET_SHADOWS[scheme]       // sheet-chrome.ts:79-85
+```
+
+That is W1/F19's ratified `SHADOW_CARD` shape exactly — the same discriminant, the same
+`[scheme]` read, so a half added or dropped is a compile error the same way `palette.ts`'s and
+`glass-tiers.ts`'s are. It is also the answer to my own round-0 LOW (F45) applied to a second
+family, without my having to file it again. The retained `*_SHADOW` alias for the consumed half is
+the right call rather than making 20 consumers spell `[scheme]`: it keeps the flip a one-line
+change AND keeps the existing consumers' single-identifier reads. Both records read `[scheme]`
+through the one consumption site, so the clause-12 scan sees no half named in a value position —
+and it does not, because the arms are bare literals (the scan is green at the rider head).
+
+The two records differ in radius as well as colour (40 dark / 28 light) and the docblocks say the
+figures are the phone's rather than a derivation, with `Layout.ts` line cites on each arm. No
+type-design finding.
+
+---
+
+## LOW (new, rider-introduced)
+
+```
+[LOW] The strengthened lit-edge negative control's new comment claims a COMPILE-TIME guarantee
+      that `as const satisfies CSSProperties` does not provide — measured
+Type: modalHeaderBar (now `as const satisfies CSSProperties`) and the control that reads it
+File: features/demo/ui/screens/__tests__/ModalShell.test.tsx — the `const fragment =
+      modalHeaderBar as CSSProperties` widening and its comment, added by `f139eb9`
+Invariant violated / permitted invalid state: none — the ASSERTION is unharmed. The comment is
+  the problem: *"adding a shorthand back is now a compile-time change as well as a runtime one."*
+  `satisfies CSSProperties` admits `border`, `borderColor` and `borderTop`; only the
+  `NoBorderShorthand` mapped type my predecessor deliberately did NOT file in W1 round 2 would
+  make it a compile error. So the comment credits the fix with the exact guarantee that round
+  ruled disproportionate, and a later reader who trusts it will believe the shorthand door is
+  shut when only the mutation door is.
+Construction site / downstream consequence — MUTATION PROBE F. Mutated copy: canonical
+  `screens/_shared.tsx`. Mutation: add `border: '1px solid red',` to `modalHeaderBar`.
+    tsc --noEmit --incremental false   ->  EXIT 0        <- the claimed compile-time change
+                                                            does NOT happen
+    ModalShell.test.tsx                ->  EXIT 1, 1 failed
+                                           "expected '1px solid red' to be undefined"
+  So the control still bites, at RUNTIME, exactly as it did before the widening — the widening
+  cost nothing and the fix is sound. Restore: verified byte-identical; suite green again 18/18.
+Fix: delete the "as well as a runtime one" clause. The accurate version is the one the widening
+  actually earns: *"the four keys are absent from the literal type, so this read needs the cast;
+  the runtime assertion is still what catches a shorthand."* One clause.
+Note: this is the SECOND rider comment in this file family to over-claim a guarantee the code
+  does not ship — the first was F33's literal-regex "fail-open" rationale, which I measured
+  backwards in round 1. Both fixes are correct; both docblocks describe a stronger property than
+  they deliver. Worth one line to whoever writes the round's closing note, because the contract's
+  standing guidance names exactly this as the dominant defect class in mature rounds.
+```
+
+---
+
+## Regression sweep over the rider commits' blast radius
+
+- **Twelve fragments changed from a mutable annotation to a readonly literal type.** The only
+  consumer that could break is one that INDEXES a key absent from the narrowed literal type, and
+  exactly one existed — `ModalShell.test.tsx`'s four-key loop — which the rider found and widened
+  with an `as CSSProperties`. Nothing else broke: `tsc --noEmit --incremental false` **EXIT 0**
+  cold at the rider head.
+- **`_shared.tsx:137` `modalSheetEnter`** went from `: CSSProperties = { animation: … }` to
+  `{ animation: 'screenIn 0.3s ease' } as const satisfies CSSProperties`, so its `animation` is
+  now the literal type. It is spread conditionally at `:281` (`...(reduceMotion ? null : modalSheetEnter)`);
+  a spread of a readonly literal into a fresh object is unaffected. Green.
+- **`CentredDialog.tsx` gained a `ColorScheme` type import** alongside `scheme` from the same
+  module (F34's record). No cycle; `tsc` EXIT 0.
+- **The clause-12 scan** now sees two more `dark:` / `light:` arm pairs (`DIALOG_SHADOWS`,
+  `SHEET_SHADOWS`). Both hold bare literals, so the round-1 `maskOwnHalfArms` mask has nothing to
+  mask and nothing to leak: `glass-tokens.test.ts` green at the rider head.
+- Blast-radius suites at `e511482`, one run: `ModalShell` + `CentredDialog` + `sheet-chrome` +
+  `banner` + `empty-state` + `choice-controls` + `glass-tokens` → **7 files, 135 passed, exit 0**.
+
+**No fix-introduced regressions found in my lane** beyond the LOW above, which is a comment.
+
+---
+
+## Type Design Summary (Round 2 rider delta)
+CRITICAL: 0 · HIGH: 0 · MEDIUM: 0 · LOW: 1
+Prior-round findings: F38' **FIXED** (was PARTIAL) — 0 PARTIAL, 0 UNFIXED remaining
+Verdict: **APPROVE**
+
+| Check | Result |
+|---|---|
+| Does the rider reach my full census? | **yes** — 26 module-level fragments across six files, all `as const satisfies`; PROBE E puts 9 of 9 exported ones at TS2540. Three function-locals remain annotated and were never in scope |
+| F34's `DIALOG_SHADOWS` shape | **confirmed** — `as const satisfies Record<ColorScheme, string>` + `[scheme]`, the W1/F19 `SHADOW_CARD` shape, with a consumed-half alias that keeps the flip one line |
+| Fixes address the finding, not the symptom | **yes** — the two module-LOCAL touch-points (`grid`, `modalHeaderIconBtn`) were closed too, which I listed but did not press for |
+| Fix-introduced regressions in blast radius | **none** (one over-claiming comment, filed LOW) |
+| Mutation probes this round | **2 run — 2 KILLED, 0 SURVIVED** (PROBE E: 9/9 TS2540 with zero stray diagnostics; PROBE F: runtime kill, and it settles the comment's compile-time claim as false). Restores proved byte-identical (`git status --short` and `git diff --stat` empty); worktree torn down with the script's proof line |
+
+Out-of-lane observations: none new this round.
+
+---
+
+
 ## Round 1 (fix delta)
 
 Warm, scoped. Phase branch `feat/uiparity-w2` @ `250e12f`, delta `addd03f..250e12f`. Authority:

@@ -67,3 +67,53 @@ Unchanged from `w2/VETTED-r1.md`. Lane seats: still not printed in any lane file
 - **F26's residual, stated so nobody re-files it:** resurrecting Banner's private trio *without* moving the seam is behaviourally inert and invisible to any value pin — a coupling defect's inert form. The relative pin catches the only harmful version (ts probe r1-B). A source-text coupling pin was correctly NOT added (string-presence trap).
 - **Lane quality:** three fixes shipped strictly stronger than their prescriptions with the lanes' endorsement (F33's two-input split — both prescribing lanes accepted the refutation of their own sketches; F44's declaration-level closure; F39's one-member type). The tests lane self-reported a contract §6 deviation (a transient `lane-tests.new.md` staging file in the review directory, deleted within the minute, rebuilt outside the repo) — recoverable, disclosed, no content lost; noted so the orchestrator knows the shared-directory hazard remains live.
 - **Nobody but this seat wrote the ledger this round** — the integrator's "ledgered" phrasing meant *proposed*; verified by `git log` on `deferred.md` (zero commits in the fix range). The one-writer protocol held.
+
+---
+
+# Round 2 — RIDER ROUND + CLOSING @ `e511482`
+
+**Verdict: APPROVE with comments** — F26–F49 **ALL FIXED**; one new LOW (**F50**, a comment-only one-liner, fix-now rider assigned; no re-review round owed).
+**Rider diff:** `250e12f..e511482` — F29' `bb7182c` · F34'+F38' (CentredDialog) `530aaf6` · F38' (_shared ×6) `f139eb9` · F38' (Banner+EmptyState ×5) `9c31793`, four branch merges. Cold gates at `e511482`: tsc 0 · 290 files / 3,902 passed | 4 todo · guard 135/135 · `/demo` 107 kB.
+**Lanes read (r2):** web APPROVE (F29' + F34' both closed on rendered/source evidence) · type-design APPROVE (F38' census closed; 1 new LOW). Verification: targeted Form-Fields re-cut, `w2/DIFF.md` §ff8–§f13.
+
+## Rider verification (my floor, then the lanes')
+
+| Item | Commit | Status | Evidence |
+|---|---|---|---|
+| **F29'** (HIGH remainder) | `bb7182c` | **FIXED** | `minWidth: 0` on the `<button>` (the flex item that carried the floor); docblock rewritten to name BOTH nested floors honestly, incl. the two prior half-true claims (spot-checked at `choice-controls.tsx:95-140`). Web, real Chromium: pane scrollW **363 → 342** (= clientW, zero overflow), rightmost painted pixel flush at 413.0, all three declarations live on the rendered nodes. Verification: FIXED on all five Form-Fields shots, both edges at `62..745`. The row now wraps to two lines — phone-parity behaviour (§f10), added to the owner checkpoint list as row 11 (mid-word break `Foren`/`sic` is the one aesthetic the owner should eyeball; the lever is copy or padding, never the wrap). |
+| **F34'** (MEDIUM remainder) | `530aaf6` | **FIXED — 4/4 touch-points** | `DIALOG_SHADOWS` both halves, light `0 8px 28px rgba(30, 58, 138, 0.15)` exact per phone `Layout.ts:158-163` (spot-checked at `CentredDialog.tsx:71-77`); consumed via `[scheme]`; web pinned the 40-vs-28 radius split and the no-sign-flip invariant (dialog casts DOWN, sheet casts UP). |
+| **F38'** (MEDIUM remainder) | `530aaf6` + `f139eb9` + `9c31793` | **FIXED — census closed** | All remaining module-level fragments `as const satisfies CSSProperties` (13 closer hits across the four files, spot-checked); td's census: 26 fragments total, 9/9 assignment probes now TS2540, zero widening fallout (tsc 0). |
+
+Fix-introduced regressions: none (both lanes swept their blast radii; gates cold-green; every route's bundle unchanged).
+
+## New finding (append-only)
+
+### F50 [LOW] `ModalShell.test.tsx:120`'s comment claims the readonly fragments make a re-added border shorthand "a compile-time change" — type-design's PROBE F disproves it (tsc exit 0 on the mutation)
+Lanes: type-design — original label: LOW (r2)
+File: `features/demo/ui/screens/__tests__/ModalShell.test.tsx:120`
+Issue: `as const satisfies CSSProperties` freezes the OBJECT (assignment is TS2540) — it does not and cannot make adding a `border:` key to a fragment declaration or a consumer literal a compile error. The runtime half of the sentence is true (the pin reds); the compile half is the false-coverage-claim class this campaign polices, in miniature.
+Fix: one line — delete "compile-time change as well as", or restate as "a runtime-pinned change (the object itself is readonly; declaration edits are caught by this pin, not by tsc)".
+**Ruling: fix-now, not a ledger row** — a comment edit cannot regress anything; it lands as a pre-merge one-liner with no delta round (cold gates at the merge are sufficient re-verification).
+Owner: `a285e52f0befce2f2` (U4.2 seat — `ModalShell` territory)
+
+## Final status, F26–F50
+
+**F26–F49: ALL FIXED** (F26/F27/F28/F29 HIGH — closed with rendered or probe evidence; F30–F43 MEDIUM — closed incl. both re-cut remainders; F44–F49 LOW — closed). **F50 LOW — fix-now rider in flight (comment-only).** No UNFIXED, no PARTIAL, no unsettled items.
+
+## Ledger interaction (closing)
+
+No rows written this round; none needed. §99–§118 stand with unexpired triggers; §119 stands (11 TS6133 at `250e12f`; W3+ packages clear as they open files; hard stop U8.4). **Harness `\b` repair (`06-p4-media.js`): no ledger row** — it is verification-driver housekeeping, not a deliberate code non-fix; per the coordinator it is committed on master, which the wave PR merge inherits untouched (the wave branch never opens that path). DIFF.md §f13's "still uncommitted" note predates that commit — orchestrator: confirm at merge, one `git log` on the driver file.
+
+## State of W2 — for the PR #42 merge
+
+1. Twelve packages, nine shared primitives, ~40 hand-rolled recipes absorbed; the wave's four HIGHs (seam bypass, a contrast regression, an unpinned shell, a clipped control) all closed with measured evidence, two of them on real pixels.
+2. The gates grew with it: role-scoped adoption scans with a live dead-exemption backstop, the clause-12 scan repaired past F23's closure, five sheet fragments pinned on the rendered element, the recorder paint pinned where it renders, both dialog shadows and the sheet shadows in both scheme halves.
+3. Ledger across the wave: §90/§94/§95 resolved · §89/§96/§98 annotated or amended · §99–§119 written (21 rows, every trigger greppable) · six proposals refused, two moot — all recorded in the two vetted docs.
+4. Owner checkpoint 2 is `w2/DIFF.md` §7, now eleven rows (row 11 added at closing: the mid-word wrap).
+5. Merge order: land F50's one-liner, cold gates, then `gh pr merge 42 --merge --delete-branch`; W3's branch merges master and re-gates before its phases open (standing rule). W3's BEFORE captures must be re-cut under `.env.local` (§4 standing rule — the environment switch happens at W3's BEFORE set, not after).
+
+## Pipeline notes (closing)
+
+- Routing discipline held this round: every rider commit landed with the seat that owns the file, one seat per file, as restructured after r1's cross-seat touch-point drops. The per-seat-per-file routing table format is now this seat's standing practice for W3.
+- The verification seat's rendered-evidence loop (Chromium measurements when captures lag, targeted re-cuts after riders) has now caught-or-confirmed the wave's only rendering regression at every stage; its §f10 wrap analysis pre-answered the one owner question the fix raises. Keep the pattern for W3's map work, where jsdom is blindest.
+- Aggregator context: ~2 rounds consumed on W2 (r1 + delta + closing). Warm for W3.
