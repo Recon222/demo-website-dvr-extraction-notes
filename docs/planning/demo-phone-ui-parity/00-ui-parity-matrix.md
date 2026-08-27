@@ -529,7 +529,9 @@ The plan merges every phase to `master`, so **between U0 and U8** the public `/d
 
 **Recommendation was: a long-lived integration branch `feat/uiparity`, `master` taking one merge at U8 exit.**
 
-**OWNER RULING 2026-08-27 — OVERRIDDEN. Phases merge straight to `master`.** The site is not live, so the recommendation solved a problem this port does not have. Phase branch `feat/uiparity-u<N>` off `master`; package branches `uiparity/u<N>.<pkg>` off the phase branch; phase PR → **`master`** with a merge commit. Rollback: `git revert -m 1 <phase merge>`. **The consequence is accepted in writing** (plan §9 clause 10): a visibly mixed-palette public `/demo` for the duration of the port.
+**OWNER RULING 2026-08-27 — OVERRIDDEN. The port lands on `master` as it goes; no long-lived integration branch.** The site is not live, so the recommendation solved a problem this port does not have. **The consequence is accepted in writing** (plan §9 clause 10): a visibly mixed-palette public `/demo` for the duration of the port.
+
+**SUPERSEDED IN PART BY D21 (owner, 2026-08-27, later the same day).** D18's core ruling stands; its *granularity* does not. The topology is now **wave branch `feat/uiparity-w<N>` off `master` → phase branches `feat/uiparity-u<N>` off the wave branch → package branches `uiparity/u<N>.<pkg>` off their phase branch**, with **ONE PR per wave** to `master` and rollback `git revert -m 1 <wave merge>`. See D21 below.
 
 ### D19 — **NEW.** The U2 ∥ U3 lane structure: serialise, or re-cut?
 
@@ -544,6 +546,22 @@ U2 and U3 are declared independent lanes but share **seven** files, and §6.1 po
 
 **Recommendation: carve it explicitly.** **In scope:** component-local UI state, prop signatures, and the composition of presentational components, **where a named package specifies it**. **Out of scope:** the store bridge, engine functions, data flow, new store subscriptions, and any change to *what the demo does* rather than *what it looks like*. This keeps `features/demo/CLAUDE.md`'s one architectural rule fully intact.
 **Consequence of leaving §2 absolute:** six packages are unbuildable as written and every one of them draws a review finding.
+
+### D21 — **NEW.** PR and review-cycle granularity: per phase, or per wave?
+
+D18's ratified topology gave every phase its own branch off `master` and its own PR, so the nine phases implied **nine full review cycles** — lane fan-out, aggregator, fix round, fix-delta, each time. The waves in plan §6.2 already group the phases into five milestones, and the phases inside a wave land within days of each other, so most of those cycles would review a diff the next one re-reads anyway.
+
+**OWNER RULING 2026-08-27 — ONE PR + ONE REVIEW CYCLE PER WAVE. Five total: W0=U0 · W1=U1 · W2=U2+U3+U4 · W3=U5+U6+U7 · W4=U8.** Owner, verbatim: *“Review cycles are a big spend; that should be one per milestone, not phase.”*
+
+**Topology.** Wave branch `feat/uiparity-w<N>` off `master`; phase branches `feat/uiparity-u<N>` off the **wave branch**; package branches `uiparity/u<N>.<pkg>` off their phase branch. Concurrent phases in a wave merge `--no-ff` **into the wave branch** in plan §6.2's order (`dt-integrator` for any merge not clean in one pass); the wave opens **one** PR → `master` with a merge commit.
+
+**Rollback** is `git revert -m 1 <wave merge>`; a single phase or package still reverts by its own commits. **Review artifacts** move to `docs/code-reviews/ui-parity/w<N>/`. **Gates run twice** — on each phase branch at its assembly, and again on the wave branch at wave assembly; the wave-assembly run is what the PR quotes.
+
+**Wave 0 is U0 alone, so `feat/uiparity-u0` IS the W0 branch** — no rename and no second branch. **Device checkpoints are unchanged** and were already expressed as wave boundaries in D1: after W1, after W2, and at W4 exit.
+
+**Consequence, stated plainly:** a wave PR's diff is larger and its review brief must name **every** phase in the wave, or a lane will file the rest of the wave as out-of-scope. That briefing obligation is the cost of the ruling and is written into plan §6.5.
+
+---
 
 ### Amendments to D5, D10 and D15
 
@@ -729,7 +747,7 @@ What ports: the WCAG 2.1 relative-luminance helper, `flattenOver` (A53) so trans
 
 **RATIFIED — owner, 2026-08-27.** This section supersedes the recommendations in §DECISIONS wherever the two differ. `01-master-ui-parity-plan.md` §3 carries the same rulings.
 
-**All twenty were ruled by the owner on 2026-08-27** — D1–D17, D19 and D20 accept the recommendation as written; **D18 was overridden.**
+**All twenty-one were ruled by the owner on 2026-08-27** — D1–D17, D19 and D20 accept the recommendation as written; **D18 was overridden**, and **D21 (new, later the same day) supersedes D18's PR granularity**: one PR and one review cycle per WAVE, five total.
 
 | # | Decision | Recommendation (one line) | **Ruling (owner, 2026-08-27)** | Notes |
 |---|---|---|---|---|
@@ -750,6 +768,7 @@ What ports: the WCAG 2.1 relative-luminance helper, `flattenOver` (A53) so trans
 | D15 | PR #125's floating header | Port the geometry (92→64pt); defer the scroll-materialising blur. **Amendment: the demo's `OverlayHeader` (A61) is a demo-originated consolidation and is NOT the component this defers.** |  **RATIFIED** as recommended | — |
 | D16 | Armed-case echo row deletion | Delete it; its phone citation is stale. |  **RATIFIED** as recommended | — |
 | D17 | Camera chrome palette | Freeze it; port only `#007AFF` → `primaryDark` and the `CameraControls` scrim → `overlay` (90%). |  **RATIFIED** as recommended | — |
-| **D18** | NEW — Integration model and rollback | ~~Long-lived `feat/uiparity` integration branch~~ | **OVERRIDE → merge straight to `master`.** | Site is not live. Phase branch `feat/uiparity-u<N>` off `master`; package branches `uiparity/u<N>.<pkg>` off the phase branch; phase PR → `master` with a merge commit; rollback `git revert -m 1 <phase merge>`. §9 clause 10 accepts a mixed-palette `/demo` for the duration. |
+| **D18** | NEW — Integration model and rollback | ~~Long-lived `feat/uiparity` integration branch~~ | **OVERRIDE → the port lands on `master` as it goes, no integration branch.** | Site is not live. §9 clause 10 accepts a mixed-palette `/demo` for the duration. **Its branch/PR granularity is SUPERSEDED BY D21** — see the D21 row below for the live topology. |
 | **D19** | **NEW — The U2 ∥ U3 lane structure** | **Re-cut the boundary, do not serialise:** U3.3 builds `Banner` and adopts it only where no other lane touches the file; the six cross-lane adoptions move to U6.2/U6.4/U7.2/U7.3, which already open those files. |  **RATIFIED** as recommended | — |
 | **D20** | **NEW — The behaviour-change carve-out** | **In scope:** component-local UI state, prop signatures, presentational composition, where a named package specifies it. **Out:** the store bridge, engine functions, data flow, new store subscriptions. |  **RATIFIED** as recommended | — |
+| **D21** | **NEW — PR and review-cycle granularity** | ~~One PR and one review cycle per PHASE (nine)~~ | **RULED → ONE PR + ONE review cycle per WAVE. Five total: W0=U0 · W1=U1 · W2=U2+U3+U4 · W3=U5+U6+U7 · W4=U8.** | *“Review cycles are a big spend; that should be one per milestone, not phase.”* Supersedes D18's granularity, not its core ruling. Wave branch `feat/uiparity-w<N>` off `master`; phase branches off the wave branch; phases merge `--no-ff` into it in plan §6.2's order; one wave PR → `master`; rollback `git revert -m 1 <wave merge>`; artifacts `docs/code-reviews/ui-parity/w<N>/`. `feat/uiparity-u0` IS the W0 branch. Device checkpoints unchanged (after W1, after W2, at W4 exit). |
