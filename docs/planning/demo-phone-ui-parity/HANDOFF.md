@@ -80,7 +80,7 @@ You are the ORCHESTRATOR: you brief agents, merge branches, run reviews, keep do
 | **PARTNER — legwork** (`dt-partner-opus`, WARM for the whole build; resume by id) | agentId `aa1ddb75b9ac90195` | Opus | warm; probed U0.1/U0.5 premises (one refuted, one confirmed) |
 | **U0 implementer A** (`opus-implementer`; U0.0→U0.3; worktree `worktrees/u0-foundation`, branch `uiparity/u0.foundation`) | agentId `ae5f52b4da850cd08` | Opus xhigh | done (~351k tokens); WARM for W0 fix rounds on its packages |
 | **U0.4 implementer** (`opus-implementer-max`; worktree `worktrees/u0-guard`, branch `uiparity/u0.guard`) | agentId `adff9eb9a7670742f` | Opus max | in flight |
-| **U0.5 implementer** (`opus-implementer-max`; worktree `worktrees/u0-contrast`, branch `uiparity/u0.contrast`) | agentId `aaa5c5ea7ea00825b` | Opus max | in flight |
+| **U0.5 implementer** (`opus-implementer-max`; worktree `worktrees/u0-contrast`, branch `uiparity/u0.contrast`) | agentId `aaa5c5ea7ea00825b` | Opus max | done (`ee91bb9`, merged --no-ff into `feat/uiparity-u0`; 3,506+15 todo green; 2 survived probes fixed pre-push); WARM for W0 fix rounds |
 | **VERIFICATION seat** (Playwright captures; WARM across waves; captures under `worktrees/_captures/w<N>/{before,after}`, Playwright scratch at `worktrees/_pw`) | agentId `ae2b8ca4003b5eb41` | Opus | W0 BEFORE done (117); worktree `verify-w0-before` + `_pw` kept WARM for AFTER |
 | Demo UI inventory | `recon-demo-ui` | Opus | done (resumable for §3 line-range re-checks) |
 
