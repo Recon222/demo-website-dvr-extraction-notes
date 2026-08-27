@@ -88,10 +88,14 @@ export interface MapControlsProps {
  * owner-ruled divergence (D5's amendment, matrix §C.1 row 41, A19's binding rider).
  *
  * The phone paints `Colors.dark.onPrimary` on `Colors.dark.primary` (`MapControls.tsx:181`,
- * `:328`): `#ffffff` on `#2B8CC1` measures **3.73:1**. The badge renders a NUMERAL, so §C.3
- * rule 2's "non-text marks" carve-out does not cover it and the 4.5 text floor applies.
- * `primaryDark #1F6B99` measures **5.80:1**. The phone genuinely ships the 3.73 pairing; this is
- * not drift, and the divergence is named in the PR body.
+ * `:328`), which measures **3.73:1**. The badge renders a NUMERAL, so §C.3 rule 2's "non-text
+ * marks" carve-out does not cover it and the 4.5 text floor applies. `primaryDark` measures
+ * **5.80:1**. The phone genuinely ships the 3.73 pairing; this is not drift, and the divergence
+ * is named in the PR body.
+ *
+ * (The hexes are named in `tokens/palette.ts` and nowhere else, deliberately: quoting
+ * `primaryDark`'s literal even in this comment reds `glass-tokens.test.ts`'s banned-literal
+ * scan, which reads raw text — U5.1 tripped the same wire three times.)
  *
  * Exported so `palette-contrast.test.ts` pins the ratio **at the constant the component paints**
  * rather than at `palette.primaryDark` — a pin against the palette stays green through exactly
