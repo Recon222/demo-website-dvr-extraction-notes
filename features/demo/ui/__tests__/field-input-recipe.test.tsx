@@ -116,6 +116,17 @@ describe('Field — screens/_shared.tsx (U2.1 / A72)', () => {
     expect(label.closest('div')?.parentElement?.style.opacity).toBe('')
   })
 
+  it('treats an empty-string error as NO error, exactly as `aria-invalid` does', () => {
+    // `describedBy`/`invalid` are truthiness checks (`error ? … : undefined`), so a `''`
+    // error must not redden the box either — otherwise the field paints a validation state
+    // that no message and no `aria-invalid` back up.
+    render(<Field {...base} error="" />)
+    const input = screen.getByLabelText('Case Number')
+    expect(input).not.toHaveAttribute('aria-invalid')
+    expect(input.style.borderWidth).toBe('1px')
+    expect(normColor(input.style.borderColor)).toBe(BORDER)
+  })
+
   it('applies the same recipe to the multiline textarea', () => {
     render(<Field {...base} multiline />)
     const box = screen.getByLabelText('Case Number')

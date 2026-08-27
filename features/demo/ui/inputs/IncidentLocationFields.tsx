@@ -123,7 +123,7 @@ function CoordinateField({
         aria-describedby={error ? errorId : undefined}
         inputMode="text"
         autoComplete="off"
-        style={fieldInputStyle({ error: error !== undefined, focused })}
+        style={fieldInputStyle({ error: Boolean(error), focused })}
       />
       {error && (
         <div id={errorId} role="alert" style={{ fontSize: 12, color: '#ff6b78', marginTop: 5 }}>

@@ -253,7 +253,7 @@ export function Field({
   const invalid = error ? true : undefined
   // `readOnly` IS the phone's `editable={false}`, i.e. its `isDisabled` (`TextInput.tsx:67`).
   const [focused, setFocused] = useState(false)
-  const boxStyle = fieldInputStyle({ error: error !== undefined, focused, disabled: readOnly })
+  const boxStyle = fieldInputStyle({ error: Boolean(error), focused, disabled: readOnly })
   const focusProps = { onFocus: () => setFocused(true), onBlur: () => setFocused(false) }
   // The read-only dimming lives on the BOX, never on the wrapper below. A wrapper opacity
   // takes the LABEL down with it — the exact defect the phone's PR #115 fixed and D10 forbids

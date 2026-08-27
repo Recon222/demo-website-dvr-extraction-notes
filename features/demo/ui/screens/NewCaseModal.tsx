@@ -77,7 +77,7 @@ function CoordinateField({ label, kind, value, onChange }: { label: string; kind
         aria-label={label}
         inputMode="text"
         autoComplete="off"
-        style={fieldInputStyle({ error: error !== undefined, focused })}
+        style={fieldInputStyle({ error: Boolean(error), focused })}
       />
       {error && <div style={{ fontSize: 12, color: '#ff6b78', marginTop: 5 }}>{error}</div>}
     </div>
