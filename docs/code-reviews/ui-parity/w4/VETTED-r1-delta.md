@@ -47,3 +47,50 @@ No strikes; §123/§124 stand for the device pass.
 - **No PR for W4 yet** — the lanes' authority was the declared disk artifact; acceptable this once and disclosed by every lane, but the PR must carry the full mapping comment when it opens, before merge.
 - The ts lane's "I own half of this" on F83' — its own r1 prescription spelled the erased form — is the campaign's third warm-seat self-correction (predecessor's F7, this desk's F34/F84). The pattern holds: warm seats re-question their own precedents when evidence arrives.
 - Aggregator: F-numbering at **F90**; next § **126**.
+
+---
+
+# Round 2 — RIDER ROUND + CLOSING @ `a7d4215`
+
+**Verdict: APPROVE** — **F82–F90 ALL FIXED.** The wave's review state is complete; per the owner's instruction the PR merge and the final DoD pass are HELD for their return. Cold gates: tsc 0 in BOTH programs · 4,335 passed · guard 145/145 · `/demo` 107 kB.
+
+## Rider verification (floor + tests lane r2, APPROVE 0/0/0/0)
+
+| Item | Commit | Status | Evidence |
+|---|---|---|---|
+| **F83'** | `5274aef` | **FIXED** | The KNOWN-LOSSY notice is inside the emitted `NewCaseModal` contract (spot-checked: present, names the union); tests' out-of-lane check: the contract-text pin KILLS and the generator fails loud alone. §125 covers both lossy classes. |
+| **F90 / F85'** | `c081a51` + `bb26314` | **FIXED** | Row 49's inversion relation gated to the dark half (spot-checked; tests probe Y5 isolates the gated relation and KILLS). The manifest re-cut at the merged head: **exactly 2 objectors, matching its claim**, SHA-stamped at `c081a51` with the parallel-branch re-cut rule now written into the manifest itself — the F90 lesson made structural. Merge-base checked including F83's test-program commits. |
+| Housekeeping | — | **DONE** | `probe-u8.4-lightflip` and `f85-screens-probe` confirmed gone (tests + this desk). One MERGED fix-branch worktree remains — `worktrees/f85-screens` @ `467cf8d` — not a probe hazard; orchestrator tears it down with `tools/worktree-remove.ps1` at leisure. |
+
+## Final status, F82–F90 (and the campaign's F-ledger)
+
+**F82–F90: ALL FIXED.** No PARTIAL, no UNFIXED, no unsettled. Campaign totals: **F1–F90 across five waves — every finding closed or deliberately ledgered with a live trigger.** Open ledger rows awaiting the owner: §123 (frame sweep under reduce), §124 (tab-bar boxShadow) — both keyed to the U8-exit device pass; §99's flip-day class is discharged by the clause-12 work (the scan + the manifest are its mechanism). F-numbering ends at **F90**; next § is **126**.
+
+## Clause 12 — final state for the owner's DoD pass
+
+The flip at the merged head: **compiles in both programs (exit 0)** and reds **exactly the 2 manifest objectors** (O1 `CentredDialog`, D1 `glass-well` — each with its reasoned entry and per-decimal arithmetic). The F85 owner flag resolves empirically: the clause's original "exactly three objectors" prose was wrong arithmetic; the shipped mechanism is stronger (a SHA-stamped, re-cut-on-merge manifest). **The owner ratifies at the DoD pass:** accept the manifest as clause 12's satisfaction (a plan §9 amendment referencing it), or rule further work on the two objectors.
+
+## Plan / matrix corrections for the orchestrator (apply at merge)
+
+1. **Plan §9 clause 12:** replace "exactly three objectors" with a reference to `w4/lightflip-objector-manifest.md` (SHA-stamped, re-cut at every merge touching its subject) — pending the owner's ratification above.
+2. **Plan §5 U8.4's Toggle row (D-7):** refuted — `Toggle` was never in `componentSrcMap`/`dtsPropsFor`; the row assumed a pin that did not exist. Correct the row; pinning Toggle later needs a `componentSrcMap` entry + preview, covered by the exemption-free entry test with no edit.
+3. **Matrix D12's rationale sentence** (banked W3, re-listed in case unapplied): the constraint stands; "different families cannot collide" is replaced by the measured role-based separation.
+4. **The four U8 reports' own §-correction lists**, as usual.
+5. **Owner device-pass checklist for the DoD** (the accumulated open judgement calls, all recorded): §123 frame sweep · §124 tab-bar boxShadow · F87's phone-verbatim active-tint inversion (3.14, dimmest of four — accept-and-record or `colors.link`) · U8.1's disclosed 5.19-vs-5.27 disclosure ratio · W2's mid-word wrap (checkpoint row 11) · §118's input-boundary family · the two manifest objectors.
+
+## Seat-closing precedent (this desk, W2–W4 — successor brief if this seat rotates before any post-campaign round)
+
+1. **Severity by compensating check:** silent survivor on a load-bearing surface with no gate = HIGH (F28, F53); single-site pin gap or scan-scope hole with a live compensating gate or scheduled check = MEDIUM (F30/F31/F32/F33/F54) — held consistently across nine demotions, zero contested.
+2. **The scan-conventions arc closed:** no-exemption + anti-vacuity control; "shrink the CLAIM to the pattern, not widen the pattern until it lies"; the planted control must exercise the claim (F67). Quote these in any future scan brief.
+3. **Triggers name the AUTHORITY, not the opener** (§107 twice, §112, §103) — a row whose trigger names an actor without power to act lapses on arrival.
+4. **Evidence artifacts are gates:** SHA-stamp and re-cut at every merge touching the subject (F90); a parallel branch invalidates a measurement silently.
+5. **Cross-seat touch-points are dispatch rows, not parentheticals** (W2's F34/F38 drops) — one routing row per seat per file, held since.
+6. **Warm seats re-question their own precedents when evidence arrives** — predecessor's F7, this desk's F34→F84, ts's F83' erasure. Treat your own prior prescriptions as claims.
+7. **Refutations with measurements are accepted on the merits** (F58, F62, F51-scope, D-2's mechanism) — the pipeline's health metric, both directions.
+8. **Ledger discipline:** phone source beats matrix prose; recorded-elsewhere work is never a row; a strictly-stricter defect can ledger where a looser one must fix (F81 vs F29).
+9. **Zero manufactured findings in three waves of lanes** — when a lane self-corrects ("one assertion too generous", "I own half of this"), say so in pipeline notes; it is the counter-signal that keeps the severity ladder honest.
+
+## Pipeline notes (closing)
+
+- The W4 PR, when opened, must carry the full commit→finding mapping for both rounds (the disk artifact substituted once, disclosed by every lane).
+- Verification v7's final capture set and the owner's device pass are the two remaining acts of the campaign; this seat stays warm for the DoD pass and any post-campaign spot-check ride.
