@@ -321,7 +321,11 @@ export function WizardDrawer({
               right: 0,
               zIndex: 42,
               width: DRAWER_W,
-              background: '#0b1626',
+              // Phone `CustomDrawerContent.tsx:153` — `backgroundColor: colors.background`. The
+              // panel is the app's own ground, so the glass rows sit only a shade above it; the
+              // `#0b1626` this replaces was a prototype navy 2.7x darker in relative luminance,
+              // which is what made the rows read as floating on a hole (DP-2).
+              background: colors.background,
               boxShadow: '-24px 0 60px rgba(0,0,0,0.5)',
               display: 'flex',
               flexDirection: 'column',
@@ -349,7 +353,13 @@ export function WizardDrawer({
               <button
                 type="button"
                 onClick={onBackToCases}
-                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderRadius: 10, background: '#101f33', cursor: 'pointer', border: 'none', width: '100%' }}
+                // Phone `CustomDrawerContent.tsx:184-196`: the SAME glass recipe as the step rows
+                // below, and its docblock at `:181-183` records why — it used to paint a single
+                // flat `backgroundColor`, "which read as a hole next to them". The demo was still
+                // in that pre-fix state (`#101f33`, `border: 'none'`). Everything that makes this
+                // control different is deliberate and kept: tighter padding, the arrow, the
+                // divider beneath.
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderRadius: 10, background: GLASS.gradientCard, border: GLASS.borderSoft, cursor: 'pointer', width: '100%' }}
               >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#99badd" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M19 12H5M12 19l-7-7 7-7" />

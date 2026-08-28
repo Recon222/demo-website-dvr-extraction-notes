@@ -292,6 +292,28 @@ describe('palette (U0.1 / A1-A9, A19, A27, A28)', () => {
          */
         exempt: ['screens/_shared.tsx', 'controls/ExitDialog.tsx'] as readonly string[],
       },
+      {
+        /**
+         * DP-2 / DP-4. Two prototype navies the phone NEVER had, which is exactly why five waves
+         * of porting never caught them: `RETIRED` lists hexes the PHONE retired, and the drift
+         * guard compares values that exist on BOTH sides — a demo-ORIGINAL colour is invisible
+         * to both. `#0b1626` was the drawer panel's ground (the phone paints
+         * `colors.background` there, `CustomDrawerContent.tsx:153`) and `#101f33` was its
+         * "Back to Cases" fill, where the phone paints the same card glass as the rows
+         * (`:184-196`) — whose own docblock records that a flat fill "read as a hole next to
+         * them". This family is what makes a demo-original ground catchable at all.
+         */
+        name: 'the orphan panel navies',
+        replacement: 'colors.background, or GLASS.gradientCard for a raised control',
+        needle: /#0b1626|#101f33|rgba?\(11,22,38|rgba?\(16,31,51/,
+        spellings: ['#0b1626', '#0B1626', '#101f33', 'rgb(11, 22, 38)', 'rgba(16, 31, 51, 0.5)'],
+        /**
+         * `ExitDialog` only — D12-frozen for the same reason the scrim family exempts it: it
+         * renders OUTSIDE the phone frame (`position:fixed`, the "Exploration manifest" chrome)
+         * and is not a phone surface at all. Every in-frame site was fixed rather than exempted.
+         */
+        exempt: ['controls/ExitDialog.tsx'] as readonly string[],
+      },
     ] as const
 
     const scan = (needle: RegExp): string[] =>

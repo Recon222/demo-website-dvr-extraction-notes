@@ -184,7 +184,7 @@ export function AddressAutocomplete({
         <ul
           role="listbox"
           aria-label={`${label} suggestions`}
-          style={{ position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 50, listStyle: 'none', margin: '4px 0 0', padding: 4, background: '#0b1626', border: GLASS.borderBtn, borderRadius: 8, boxShadow: '0 12px 30px rgba(0,0,0,0.5)', maxHeight: 220, overflowY: 'auto' }}
+          style={{ position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 50, listStyle: 'none', margin: '4px 0 0', padding: 4, background: colors.background, border: GLASS.borderBtn, borderRadius: 8, boxShadow: '0 12px 30px rgba(0,0,0,0.5)', maxHeight: 220, overflowY: 'auto' }}
         >
           {suggestions.map((s, i) => (
             <li key={i} role="option" aria-selected={false}>
