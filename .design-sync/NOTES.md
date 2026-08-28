@@ -111,18 +111,47 @@ merges the other way — generated wins, and a hand-written entry survives only 
 the generator produced NOTHING for (a component it SKIPPED: no props, no matching
 export, or a checker error). Probed both directions.
 
-**Two live consequences of un-freezing it**, neither a regression (both states are
-strictly more contract than the frozen 3-prop entries they replaced), but both worth
-knowing:
-1. **Some emitted `.d.ts` now reference names they do not define** — `GpsCoordinates`,
-   `GpsSource`, `ReverseGeocodeResult`, `OcrRecognizeOutcome`, and a bare `K`.
-   `printType` expands local object types but has no INTERSECTION branch, so
-   `GpsCoordinates & { source: GpsSource }` falls through to `type.getText()`.
-   `all .d.ts parse cleanly` still passes, so this is a contract-quality gap, not a
-   build failure. The fix is a `type.isIntersection()` arm beside the union one.
-2. **`isFieldVisible`'s 57-member field-id union is inlined into six screens' entries**,
-   which is most of their size. Bug 1 below (expand only repo-declared types) is why it
-   expands at all; it is correct, just verbose.
+**Three MIS-ENCODINGS fixed 2026-08-27 (W4/F83).** Un-freezing the generator exposed
+contracts that were not merely incomplete but WRONG — each silent for a campaign,
+because nothing read the generator's output back. All three are now pinned by
+`features/demo/ui/__tests__/design-sync-entry.test.ts`, each probed:
+
+1. **Union array elements are parenthesised** (`printType`'s array branch). `X[]` binds
+   tighter than `|`, so `activeStatuses: 'started' | 'working' | 'complete'[]` meant
+   `'started' | 'working' | ('complete'[])` — a contract that REJECTS the array
+   `MapFiltersSheet` actually takes and ACCEPTS a bare `'started'` string. The component
+   then runs `.includes()` on a string, which is a SUBSTRING test, so the design agent's
+   "valid" call renders every status chip pressed. Wrong in both directions.
+2. **Intersections, `Promise<T>` and generic signatures resolve.** There was no
+   `isIntersection()` arm, so `GpsCoordinates & { source: GpsSource }` fell through to
+   `type.getText()` with neither name bound; `Promise<T>` did the same. And a generic
+   signature emitted an UNBOUND type parameter — `NewCaseModal.onChange` shipped as
+   `(field: K, value: NewCaseFields[K]) => void` with no `K` anywhere, which is
+   unresolvable in principle: `cfg.dtsPropsFor` is an interface BODY and there is nowhere
+   to declare a binder. Generic parameters are now ERASED to their constraint, with the
+   indexed access collapsed through `getApparentType()`. **Zero unresolved local type
+   names remain**, and the suite scans for them rather than listing them.
+   ⚠ `getApparentType()` BOXES primitives (`string` -> `String`), so it is applied only
+   where the declared type mentions a type parameter, and boxed spellings are mapped back.
+3. **A UNION props type is KNOWN-LOSSY, and now says so.** `export interface XProps { … }`
+   cannot express a union — nor can `extends`, which takes an intersection only. The old
+   code called `getProperties()` on the union, which returns only the members common to
+   every arm with optionality WIDENED, so `OverlayHeader` shipped as
+   `backLabel?: string; onBack?: () => void` — exactly the state W3/F74 closed, where an
+   icon-only header renders with no accessible name. The flatten is unavoidable; telling
+   the design agent the illegal state is legal is not. The generator now prefixes such a
+   body with a `/* KNOWN-LOSSY … DISCRIMINATED GROUP … */` comment, which is valid inside
+   an interface body and survives into the emitted `.d.ts`.
+   **`OverlayHeader` is the only KNOWN-LOSSY contract today.** If a second union props
+   type arrives it gets the same marker automatically.
+
+**Still true and not a defect:** `isFieldVisible`'s 57-member field-id union is inlined
+into six screens' entries, which is most of their size. Bug 1 below (expand only
+repo-declared types) is why it expands at all; it is correct, just verbose.
+
+**Idempotency is the gate.** Two consecutive runs must produce a byte-identical
+`config.json` — verified after W4/F83. A generator whose output moves on a second run
+with no source change is encoding something unstable.
 
 Four bugs found building it — all would silently degrade the contract, so don't
 "simplify" these away:
@@ -219,19 +248,45 @@ fails the suite if you forget.
   Not reworkable without inventing a difference the component does not paint.
 - `[FONT_REMOTE]` — **no longer fires.** See the corrected fonts entry under "Gotchas".
 
-## The render check is the ONLY guard on preview↔component prop drift
+## Preview↔component prop drift is a COMPILE ERROR now (W4/F82)
 
-Nothing runs `package-validate.mjs` on a component prop change, and previews are not
-typechecked (they import `'open-pro-next'`, which tsc cannot resolve — that is the
-"Cannot find module" diagnostic the calibration notes tell you to ignore). Both halves of
-that are why, by 2026-08-27, **10 of 37 cards had been rendering EMPTY** — `isFieldVisible`,
-`onCoordinates`, `mediaTools`, `saveStatus`, `NotesScreen`'s whole `sections` rewrite and
-`OcrCaptureScreen`'s `resolution.kind` had all arrived without their previews following, and
-the only symptom was a blank card in an artifact nobody rebuilt. U8.4 repaired all ten.
+**`pnpm typecheck` runs two programs**: the app's, then `tsconfig.previews.json`. The second
+puts the 37 demo previews in a program whose `paths` maps `open-pro-next` →
+`.design-sync/ds-entry.ts`, so each preview is typechecked against the REAL component props —
+the same generated entry the bundler builds from. Change a synced component's props without
+updating its preview and the gate reds.
 
-**So: whenever a synced component's props change, rebuild and re-validate.** The suite
-cannot cover this — the check needs Playwright and a full bundle build. Gate on the exit
-code, and read `ds-bundle/.render-check.json` for the per-component `firstErr`.
+**CORRECTED 2026-08-27 (W4/F82).** This section used to say previews "are not typechecked
+(they import `'open-pro-next'`, which tsc cannot resolve)". **That reason was wrong**, and it
+mattered: it made the problem look unfixable and sent U8.4's D-2 ledger proposal after a
+`declare module` shim that would not have load-borne. The real cause was
+`tsconfig.json:26`'s `include`: TypeScript's wildcard expansion **skips directories whose name
+begins with a dot** unless the path names them explicitly, so `**/*.tsx` never reached
+`.design-sync/` and the previews were in NO program at all — `tsc --listFiles` counted **zero**
+of them. `open-pro-next` was never the obstacle; it just needed a `paths` entry.
+
+Measured before the fix: planted drift in a preview survived BOTH `tsc` and the full suite,
+and the clean tree already carried **19 errors across 8 previews** the moment a program saw
+them — including `previews/ModalShell.tsx` passing **no** `closeAccessibilityLabel`, the a11y
+prop `ModalShell` made REQUIRED, on the artifact this file calls the design agent's contract.
+Earlier, by 2026-08-27, **10 of 37 cards had been rendering EMPTY** for the same reason
+(`isFieldVisible`, `onCoordinates`, `mediaTools`, `saveStatus`, `NotesScreen`'s `sections`
+rewrite, `OcrCaptureScreen`'s `resolution.kind`). The render check caught those because they
+THREW; the 8 above painted `undefined` silently, which is why "37/37 render cleanly" and
+"8 previews drifted" were both true at once.
+
+**Two gotchas if you touch `tsconfig.previews.json`:**
+1. **The `react` / `react/jsx-runtime` / `csstype` `paths` entries are load-bearing.** Every
+   checkout symlinks `.design-sync/node_modules` → `.ds-sync/node_modules` (that is what makes
+   ESM resolve `ts-morph`), and `.ds-sync` ships its own `@types/react`. Node resolution walks
+   UP, so without those three entries a preview loads a SECOND React type tree and the program
+   reports ~20 spurious `Property.BorderBlockStyle is not assignable to itself` errors.
+2. **The 21 marketing previews are excluded by name.** `previews/` is shared with
+   `config.marketing.json`, whose previews import through a different bundle global.
+
+**The render check is still worth running** — it catches what types cannot (a component that
+throws at runtime, an empty root, identical variants). Gate on the exit code and read
+`ds-bundle/.render-check.json` for the per-component `firstErr`.
 
 ## Re-sync risks
 

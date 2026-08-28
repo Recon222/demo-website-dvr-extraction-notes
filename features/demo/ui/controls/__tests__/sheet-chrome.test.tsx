@@ -27,7 +27,7 @@ import { ExportActionSheet } from '@/features/demo/ui/screens/ExportActionSheet'
 import { MapBottomSheet } from '@/features/demo/ui/screens/map/MapBottomSheet'
 import { PickerSheet } from '@/features/demo/ui/inputs/PickerSheet'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
-import { colors, scheme } from '@/features/demo/ui/tokens/palette'
+import { activeScheme, colors, scheme } from '@/features/demo/ui/tokens/palette'
 import { radius, withAlpha } from '@/features/demo/ui/tokens/scale'
 
 /**
@@ -45,9 +45,18 @@ import { radius, withAlpha } from '@/features/demo/ui/tokens/scale'
  */
 
 const sheet = GLASS_TIER[scheme].sheet
-/** What the lit edge reads back as once jsdom has normalised it. */
-const LIT = 'rgba(184, 212, 240, 0.14)'
 const header = GLASS_TIER[scheme].header
+
+/**
+ * jsdom re-spaces an `rgba()` declaration on the way back out (`rgba(28,78,132,0.6)` reads back
+ * `rgba(28, 78, 132, 0.6)`), and the tier spells its values unspaced. Normalising BOTH sides is
+ * what lets a DOM-level pin compose from the tier instead of hand-spelling one scheme's string —
+ * W4/F85. Same shape as `CentredDialog.test.tsx:46`.
+ */
+const norm = (s: string): string => s.toLowerCase().replace(/\s+/g, '')
+/** The lit top edge and the three side tints, of the CONSUMED scheme, as the DOM reports them. */
+const LIT = norm(sheet.highlightTop)
+const TINT = norm(sheet.border)
 
 /** `toHaveStyle` is typed for `Record<string, unknown>`; `CSSProperties` has no index signature. */
 function decl(fragment: CSSProperties): Record<string, unknown> {
@@ -65,10 +74,10 @@ function decl(fragment: CSSProperties): Record<string, unknown> {
  */
 function sides(el: HTMLElement) {
   return {
-    top: el.style.borderTopColor,
-    right: el.style.borderRightColor,
-    bottom: el.style.borderBottomColor,
-    left: el.style.borderLeftColor,
+    top: norm(el.style.borderTopColor),
+    right: norm(el.style.borderRightColor),
+    bottom: norm(el.style.borderBottomColor),
+    left: norm(el.style.borderLeftColor),
   }
 }
 
@@ -119,7 +128,7 @@ describe('sheetSurface — the A38 ground', () => {
     // :441, styles.sheet :481-488). An `inset 0 1px 0 <innerShadow>` would be a value the
     // phone does not render. Same finding as U1.4's header bars.
     expect(sheetSurface.boxShadow).toBe(SHEET_SHADOW)
-    expect(SHEET_SHADOW).toBe('0 -8px 40px rgba(0,0,0,0.5)')
+    expect(SHEET_SHADOWS.dark).toBe('0 -8px 40px rgba(0,0,0,0.5)')
     expect(SHEET_SHADOW).not.toContain('inset')
     // W2/F34 — BOTH halves ship, and the consumed one is the scheme's.
     expect(SHEET_SHADOW).toBe(SHEET_SHADOWS[scheme])
@@ -143,7 +152,6 @@ describe('sheetSurface — the A38 ground', () => {
 
   it('renders the lit edge on FIRST PAINT, not the side tint — on all four sides', () => {
     const el = paint(sheetSurface)
-    const TINT = 'rgba(28, 78, 132, 0.6)'
     expect(sides(el)).toEqual({ top: LIT, right: TINT, bottom: TINT, left: TINT })
     expect(el.style.borderTopWidth).toBe('2px')
     expect(el.style.borderRightWidth).toBe('1px')
@@ -179,7 +187,7 @@ describe('sheetSurface — the A38 ground', () => {
         borderRightColor: tint,
         borderBottomColor: tint,
         borderLeftColor: tint,
-      })),
+      })).map(norm),
     ).toEqual([LIT, LIT, LIT])
   })
 
@@ -194,8 +202,8 @@ describe('sheetSurface — the A38 ground', () => {
     const el = () => container.querySelector<HTMLElement>('[data-paint]')!
     expect(el().style.borderLeftColor).toBe('rgb(1, 1, 1)')
     rerender(<div data-paint style={{ ...sheetSurface }} />)
-    expect(el().style.borderLeftColor).toBe('rgba(28, 78, 132, 0.6)')
-    expect(el().style.borderTopColor).toBe(LIT)
+    expect(norm(el().style.borderLeftColor)).toBe(TINT)
+    expect(norm(el().style.borderTopColor)).toBe(LIT)
   })
 
   it('fails a `borderColor` override on the FIRST paint — loudly, not on paint two', () => {
@@ -256,7 +264,7 @@ describe('the dark-only treatments (W2/F34)', () => {
     // The phone wraps both in `isDark && {...}` (`GlassBottomSheet.tsx:326-332`, `:339-343`).
     // Shipping them unconditionally would glow a deep-navy `primary` against white and drop a
     // black text shadow under near-black text.
-    const dark = scheme === 'dark'
+    const dark = activeScheme === 'dark'
     expect(sheetAccentDot.boxShadow).toBe(dark ? `0 0 4px ${withAlpha(colors.primary, 0.4)}` : undefined)
     expect(sheetTitle.textShadow).toBe(dark ? '0 1px 2px rgba(0, 0, 0, 0.3)' : undefined)
   })
@@ -269,7 +277,11 @@ describe('the header glyphs', () => {
     expect(sheetAccentDot.height).toBe(6)
     expect(sheetAccentDot.borderRadius).toBe(radius.full)
     expect(sheetAccentDot.background).toBe(colors.primary)
-    expect(sheetAccentDot.boxShadow).toBe(`0 0 4px ${withAlpha(colors.primary, 0.4)}`)
+    // The glow is `isDark && {...}` on the phone (`:326-332`); the arm the CONSUMED scheme takes
+    // is what this reads. The gate itself is pinned in both directions above.
+    expect(sheetAccentDot.boxShadow).toBe(
+      activeScheme === 'dark' ? `0 0 4px ${withAlpha(colors.primary, 0.4)}` : undefined,
+    )
   })
 
   it('sets the title 14/700 uppercase at ls .3 on `text`', () => {
@@ -280,8 +292,10 @@ describe('the header glyphs', () => {
       textTransform: 'uppercase',
       color: colors.text,
     })
-    // A58's title is `colors.text`, not the picker's old `T.textDim` (#cdd9e6).
-    expect(sheetTitle.color).toBe('#f0f4f8')
+    // A58's title is `colors.text`, not the picker's old `T.textDim` (#cdd9e6) and not the
+    // one-rung-dimmer token the picker reached for instead.
+    expect(sheetTitle.color).not.toBe('#cdd9e6')
+    expect(sheetTitle.color).not.toBe(colors.textSecondary)
   })
 
   it('sets the subtitle 12/400 at marginTop 2 on `textSecondary`, un-uppercased', () => {
@@ -306,7 +320,8 @@ describe('the handle', () => {
 
   it('takes textSecondary at 0.25 — A58`s rgba(153,186,221,0.25), reached through the token', () => {
     expect(sheetHandle.background).toBe(withAlpha(colors.textSecondary, 0.25))
-    expect(paint(sheetHandle).style.background).toBe('rgba(153, 186, 221, 0.25)')
+    // …and it survives the CSSOM: the constant-level pin above cannot see a value jsdom drops.
+    expect(paint(sheetHandle).style.background).toBe(withAlpha(colors.textSecondary, 0.25))
   })
 
   it('sits in a centred zone padded 8 above and 4 below', () => {

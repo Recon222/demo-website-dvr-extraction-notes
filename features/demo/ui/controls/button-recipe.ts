@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 
 import { GLASS } from '@/features/demo/ui/glass-tokens'
-import { colors, palette, scheme, type ColorScheme } from '@/features/demo/ui/tokens/palette'
+import { activeScheme, colors, palette, scheme, type ColorScheme } from '@/features/demo/ui/tokens/palette'
 import { radius, spacing, touchTarget, withAlpha } from '@/features/demo/ui/tokens/scale'
 
 /**
@@ -178,12 +178,12 @@ function paint(variant: ButtonVariant, disabled: boolean) {
         // folding `shadowColor`'s own alpha into `shadowOpacity` (1 x 0.22).
         boxShadow: disabled
           ? undefined
-          : scheme === 'dark'
+          : activeScheme === 'dark'
             ? '0 6px 20px rgba(0, 0, 0, 0.45)'
             : '0 6px 20px rgba(30, 58, 138, 0.22)',
         textShadow: disabled
           ? undefined
-          : scheme === 'dark'
+          : activeScheme === 'dark'
             ? '0 1px 1px rgba(255, 255, 255, 0.06)'
             : '0 1px 1px rgba(0, 0, 0, 0.1)',
       }

@@ -93,6 +93,23 @@ const HIGHLIGHT = normColor(tier.card.highlightTop)
 const SIDE_BORDER = normColor(tier.card.border)
 
 /**
+ * Whether the consumed scheme's `card` tier gives the lit edge a colour of its own (W4/F85).
+ *
+ * In DARK it does — `rgba(184,212,240,0.08)` against a `rgba(28,78,132,0.5)` side. In LIGHT the
+ * phone deliberately sets the two to the SAME value (`tokens/glass-tiers.ts:73-74`, lifted from
+ * `Colors.ts:279,281` whose own comment reads *"matches the border, for visibility"*); three of
+ * light's other five tiers do it too. There is no light to catch on a white surface, so light's
+ * "lit edge" is a border that happens to run along the top.
+ *
+ * So the DISTINCTNESS tripwire below has a signal only where the two tokens differ. It is not
+ * skipped in light to make the flip green — it is skipped because in light it cannot observe
+ * anything: the shorthand-override regression it hunts is caught there by the two `toBe` lines
+ * above it (an override drives all four sides to the override's colour, which is neither
+ * `HIGHLIGHT` nor `SIDE_BORDER`), and by the no-shorthand-key assertion in the next case.
+ */
+const EDGE_IS_DISTINCT = HIGHLIGHT !== SIDE_BORDER
+
+/**
  * The card surfaces that ARE cards on a `<button>`, by `data-testid` (U5.4).
  *
  * `LocationRow` is the first — the map sheet's row is pressable and paints the card tier, which
@@ -251,7 +268,7 @@ describe('the card recipe reaches every glassCard consumer (U1.2 / A31, A32, A44
       expect(card.style.borderRightColor).toBe(SIDE_BORDER)
       expect(card.style.borderBottomColor).toBe(SIDE_BORDER)
       expect(card.style.borderLeftColor).toBe(SIDE_BORDER)
-      expect(card.style.borderTopColor).not.toBe(card.style.borderRightColor)
+      if (EDGE_IS_DISTINCT) expect(card.style.borderTopColor).not.toBe(card.style.borderRightColor)
       // A32 + A44 on one declaration: the tier's inset, then the card elevation. This line
       // pins the COMPOSITION — that both halves reach the DOM, in that order (probe P6:
       // dropping the elevation half KILLS it). `GLASS.shadowCard`'s VALUE is pinned by the

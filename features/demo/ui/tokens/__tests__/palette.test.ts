@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
-import { palette, colors, type PaletteToken } from '@/features/demo/ui/tokens/palette'
+import { palette, colors, scheme, type PaletteToken } from '@/features/demo/ui/tokens/palette'
 import { T } from '@/features/demo/ui/inputs/input-theme'
 
 // Guards for the U0.1 palette port (matrix A1-A9, A19, A27, A28).
@@ -194,7 +194,19 @@ describe('palette (U0.1 / A1-A9, A19, A27, A28)', () => {
 
   it('exposes the consumed scheme as a single switchable site', () => {
     // Consumers read `colors.<phoneName>`; flipping the demo to light is this one binding.
-    expect(colors).toBe(palette.dark)
+    //
+    // RESOLVED THROUGH `scheme`, not spelled `palette.dark` (W4/F85): spelling the half made
+    // this row red on the one-line flip §9 clause 12 promises, which is the opposite of what a
+    // "single switchable site" pin is for.
+    //
+    // Not a tautology despite `colors = palette[scheme]` being the module's own line. `toBe` is
+    // reference identity across TWO separately-imported bindings, so it reds on both mutations
+    // that matter and neither is exotic: `colors = palette.dark` hard-coded beside a `scheme`
+    // that says otherwise (the switch stops switching — silently, in dark, today), and
+    // `colors = { ...palette[scheme], text: '#fff' }` (a copy, which type-checks and ships a
+    // per-consumer override no value pin in this file would see). Which half it points at is
+    // the switch and is meant to move; that it is a bare pointer at THAT half is not.
+    expect(colors).toBe(palette[scheme])
   })
 
   it('keeps the retired navy ramp out of every UI source file', () => {

@@ -122,9 +122,9 @@ describe('dialogSurface — A56, the elevated tier as a modal surface', () => {
   })
 
   it('casts A45 downward — `Layout.shadow.dialog.dark`, not the demo 0 24px 60px', () => {
-    expect(DIALOG_SHADOW).toBe('0 8px 40px rgba(0,0,0,0.5)')
+    expect(DIALOG_SHADOWS.dark).toBe('0 8px 40px rgba(0,0,0,0.5)')
     // The sheet's cast is the same recipe inverted; a dialog wearing it is phone §1.5's
-    // shipped bug. Pin the sign, not just the string.
+    // shipped bug. Pin the sign, not just the string — on the CONSUMED half, in either scheme.
     expect(DIALOG_SHADOW).not.toContain('-8px')
   })
 
@@ -549,6 +549,11 @@ describe('the dialog action row — F41, the phone gap', () => {
 describe('the dialog backdrop — F43, colors.overlay and not colors.scrim', () => {
   it('dialogScrim paints colors.overlay and owns no layering of its own', () => {
     expect(dialogScrim.background).toBe(colors.overlay)
+    // F85 objector: dark-only by construction. The phone defines light's `scrim` as the SAME
+    // value as light's `overlay` (`palette.ts:233,235`, `Colors.ts:116/121` — "the SAME value as
+    // `overlay` in light, and not in dark"), so under a light flip no rendered-value pin can tell
+    // the two tokens apart and this cell reds. That is the pin reporting a real loss of
+    // discriminating power, not a defect: F43's finding only exists where the values differ.
     expect(dialogScrim.background).not.toBe(colors.scrim)
     // `zIndex` stays the shell's — D14 froze the numbers per caller.
     expect(dialogScrim).not.toHaveProperty('zIndex')

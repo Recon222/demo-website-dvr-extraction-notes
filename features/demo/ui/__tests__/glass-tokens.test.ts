@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
-import { GLASS, glassCard, glassCardNested } from '@/features/demo/ui/glass-tokens'
+import { GLASS, SHADOW_CARD, glassCard, glassCardNested } from '@/features/demo/ui/glass-tokens'
+import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
+import { colors, scheme } from '@/features/demo/ui/tokens/palette'
 
 // Guards for the P0.5 glass-token extraction (matrix G6).
 //
@@ -470,25 +472,45 @@ describe('glass tokens (P0.5 / G6)', () => {
   })
 
   it('pins the GLASS token values (an edit here restyles ~60 call sites)', () => {
+    // SHAPE + SOURCING, composed from the consumed scheme (W4/F85). The eleven derived keys
+    // used to be spelled as dark literals, which made this row red on the one-line flip §9
+    // clause 12 promises. Every one of those literals still has a literal gate, at the module
+    // that OWNS it — `tokens/__tests__/glass-tiers.test.ts:80` pins all 48 tier values by name
+    // in both halves, `tokens/__tests__/palette.test.ts` pins all 45 palette values in both,
+    // and `SHADOW_CARD`'s two are pinned in `__tests__/glass-card-recipe.test.tsx:682`. So the
+    // conversion moves nothing off a gate; it moves the DUPLICATE off this one.
+    //
+    // What survives here, and it is what the title is about: `toEqual` is exact, so a key added
+    // to or removed from `GLASS` still reds — and each line still says WHICH token feeds it, so
+    // re-pointing `border` at `borderLight` or `gradientCard` at the `elevated` tier reds too.
+    // What it no longer catches alone is a re-tint of an underlying token, which the three pins
+    // above catch at source and the drift guard catches against the phone.
+    //
+    // `accentFrom`/`accentTo`/`gradientAccent`/`borderError` stay LITERAL because they are not
+    // scheme-derived: `ACCENT_FROM` is `PrimaryButtonGradient.dark`'s top stop by definition and
+    // has no light sibling (ledger §90, `glass-tokens.ts:79-88`), and this file is their gate.
+    const t = GLASS_TIER[scheme]
     expect(GLASS).toEqual({
       accentFrom: '#1F6B99',
       accentTo: '#17527A',
-      gradientCard: 'linear-gradient(180deg,rgba(14,57,101,0.85),rgba(23,65,110,0.92))',
-      gradientCardDiag: 'linear-gradient(135deg,rgba(14,57,101,0.85),rgba(23,65,110,0.92))',
-      gradientPanel: 'linear-gradient(180deg,rgba(23,65,110,0.88),rgba(14,57,101,0.95))',
+      gradientCard: `linear-gradient(180deg,${t.card.gradient[0]},${t.card.gradient[1]})`,
+      gradientCardDiag: `linear-gradient(135deg,${t.card.gradient[0]},${t.card.gradient[1]})`,
+      gradientPanel: `linear-gradient(180deg,${t.elevated.gradient[0]},${t.elevated.gradient[1]})`,
       gradientAccent: 'linear-gradient(180deg,#1F6B99,#17527A)',
       // U8.2 (A10/A88/D9): the alpha is the phone's `gridSubtle`, the 40px pitch is unchanged,
       // and the stop is SPACED because it is `colors.gridSubtle` verbatim off `Colors.ts:158`
       // rather than a literal typed here. `demo.css`'s own 46px/0.035 backdrop is FROZEN (D9)
-      // and is a different surface — do not "reconcile" the two.
+      // and is a different surface — do not "reconcile" the two. The 40px pitch is the one part
+      // no token owns and stays a literal on both axes.
       gridOverlay:
-        'repeating-linear-gradient(0deg,rgba(153, 186, 221, 0.11) 0 1px,transparent 1px 40px),repeating-linear-gradient(90deg,rgba(153, 186, 221, 0.11) 0 1px,transparent 1px 40px)',
-      border: '1px solid #1c4e84',
-      borderSoft: '1px solid rgba(28,78,132,0.5)',
-      borderBtn: '1px solid #2e5f97',
-      borderAccent: '1px solid rgba(43,140,193,0.25)',
+        `repeating-linear-gradient(0deg,${colors.gridSubtle} 0 1px,transparent 1px 40px),` +
+        `repeating-linear-gradient(90deg,${colors.gridSubtle} 0 1px,transparent 1px 40px)`,
+      border: `1px solid ${colors.border}`,
+      borderSoft: `1px solid ${t.card.border}`,
+      borderBtn: `1px solid ${colors.borderLight}`,
+      borderAccent: `1px solid ${t.elevated.border}`,
       borderError: '1px solid rgba(255,71,87,0.3)',
-      shadowCard: '0 4px 8px rgba(0,0,0,0.15)',
+      shadowCard: SHADOW_CARD[scheme],
     })
   })
 
@@ -500,27 +522,33 @@ describe('glass tokens (P0.5 / G6)', () => {
     // (`partner-lit-edge-ruling.md` §3-§4). The absence of those keys is pinned in
     // `__tests__/glass-card-recipe.test.tsx`, because `toEqual` reads as a value list and a
     // reviewer will not notice a key that is not there.
+    // Composed from the consumed scheme's tiers (W4/F85), for the reason the case above gives:
+    // the literals these keys used to spell are pinned in both halves at the module that owns
+    // them, and spelling them here as well made the §9 clause 12 flip red. The KEY SET is what
+    // this pin uniquely holds — `toEqual` is exact, so the absent `border`/`borderColor`/
+    // `borderTop` keys stay absent, which is the lit-edge ruling's actual contract.
+    const t = GLASS_TIER[scheme]
     expect(glassCard).toEqual({
       borderRadius: 12,
       borderStyle: 'solid',
       borderWidth: 1,
-      borderRightColor: 'rgba(28,78,132,0.5)',
-      borderBottomColor: 'rgba(28,78,132,0.5)',
-      borderLeftColor: 'rgba(28,78,132,0.5)',
-      borderTopColor: 'rgba(184,212,240,0.08)',
-      background: 'linear-gradient(180deg,rgba(14,57,101,0.85),rgba(23,65,110,0.92))',
-      boxShadow: 'inset 0 1px 0 rgba(0,0,0,0.2), 0 4px 8px rgba(0,0,0,0.15)',
+      borderRightColor: t.card.border,
+      borderBottomColor: t.card.border,
+      borderLeftColor: t.card.border,
+      borderTopColor: t.card.highlightTop,
+      background: `linear-gradient(180deg,${t.card.gradient[0]},${t.card.gradient[1]})`,
+      boxShadow: `inset 0 1px 0 ${t.card.innerShadow}, ${SHADOW_CARD[scheme]}`,
     })
     expect(glassCardNested).toEqual({
       borderRadius: 12,
       borderStyle: 'solid',
       borderWidth: 1,
-      borderRightColor: 'rgba(43,140,193,0.45)',
-      borderBottomColor: 'rgba(43,140,193,0.45)',
-      borderLeftColor: 'rgba(43,140,193,0.45)',
-      borderTopColor: 'rgba(184,212,240,0.2)',
-      background: 'linear-gradient(180deg,rgba(23,65,110,0.7),rgba(14,57,101,0.6))',
-      boxShadow: 'inset 0 1px 0 rgba(0,0,0,0.15)',
+      borderRightColor: t.nestedCard.border,
+      borderBottomColor: t.nestedCard.border,
+      borderLeftColor: t.nestedCard.border,
+      borderTopColor: t.nestedCard.highlightTop,
+      background: `linear-gradient(180deg,${t.nestedCard.gradient[0]},${t.nestedCard.gradient[1]})`,
+      boxShadow: `inset 0 1px 0 ${t.nestedCard.innerShadow}`,
     })
     // `glassBtnPrimary` / `glassBtnSecondary` were pinned here until U2.2 deleted them
     // (A64/A65/A68). Their replacement is pinned as a whole recipe in

@@ -38,7 +38,7 @@ function Row({ label, value }: { label: string; value: string }) {
 export function NewCase() {
   return (
     <Phone>
-      <ModalShell title="New Case" onClose={() => {}}>
+      <ModalShell title="New Case" onClose={() => {}} closeAccessibilityLabel="Close new case">
         <Row label="Case / OCC Number" value="PR-2026-0114-2287" />
         <Row label="Display Name" value="Northgate Convenience — armed robbery" />
         <Row label="Investigative Unit" value="Major Crime — Video Unit" />
@@ -51,7 +51,7 @@ export function NewCase() {
 export function AddLocation() {
   return (
     <Phone>
-      <ModalShell title="Add Location" onClose={() => {}}>
+      <ModalShell title="Add Location" onClose={() => {}} closeAccessibilityLabel="Close add location">
         <Row label="Location Name" value="Northgate Convenience" />
         <Row label="Street Address" value="1450 Dundas St E" />
         <Row label="City" value="Mississauga" />

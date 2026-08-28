@@ -24,12 +24,41 @@ import { touchTarget } from '@/features/demo/ui/tokens/scale'
 const tier = GLASS_TIER[scheme]
 
 /**
- * jsdom RE-SPACES every `rgba()` it accepts, so a byte-equality assertion against the demo's
- * unspaced spelling reds on formatting rather than on value (mutation-testing SKILL, project
- * hazards; §4.7). Strip whitespace on BOTH sides, exactly as `glass-tokens.test.ts`'s `norm`
- * does and for the same reason.
+ * What jsdom stores for a value written into a declaration. It re-spaces every `rgba()`,
+ * rewrites `#rrggbb` to `rgb()`, and collapses a fully opaque `rgba(r,g,b,1)` to `rgb(r,g,b)`
+ * — so a byte-equality assertion against the demo's unspaced spelling reds on FORMATTING rather
+ * than on value (mutation-testing SKILL, project hazards; §4.7).
+ *
+ * Round-tripping the EXPECTATION through the SAME property the rendered value came from is
+ * exact by construction: every rewrite jsdom performs is applied to both sides, including ones
+ * nobody has catalogued, and it cannot drift when jsdom changes. This is EXISTING repo idiom —
+ * `jsdomColor` / `jsdomBorder` (`screens/export/__tests__/export-selection-marks.test.tsx:12,19`)
+ * and `normColor` / `normGradient` (`ui/__tests__/glass-card-recipe.test.tsx:66-77`); these are
+ * the `background` / `borderColor` siblings.
+ *
+ * W4/F85 — this REPLACED a hand-rolled `norm` that stripped whitespace and lower-cased. The
+ * alpha-1 collapse is the rewrite it did not know about, and no dark value in this file
+ * exercised it: every dark tier stop carries a fractional alpha, while light's `card` stops are
+ * `rgba(248,250,252,1)` (`glass-tiers.ts`, phone `Colors.ts:277`). Under the scheme flip the pin
+ * below reddened on that alone. Teaching the normaliser one more rule would have left the next
+ * one waiting; deferring to jsdom removes the category. (Credit: f85-screens, independently, on
+ * `AudioRecorderScreen.test.tsx:406`.)
  */
-const norm = (s: string): string => s.toLowerCase().replace(/\s+/g, '')
+/** ponytail: SOLID COLOURS ONLY. jsdom parks a gradient on `background-image`, so this returns
+ *  `''` for one and the pin would compare two empty strings. Both call sites below pass a single
+ *  tier stop. For a gradient use `normGradient`'s shape (`glass-card-recipe.test.tsx:72-77`) —
+ *  write `background`, read `backgroundImage`. (Ceiling named by f85-screens on its own copy.) */
+function jsdomBackground(value: string): string {
+  const probe = document.createElement('div')
+  probe.style.background = value
+  return probe.style.background
+}
+
+function jsdomBorderColor(value: string): string {
+  const probe = document.createElement('div')
+  probe.style.borderColor = value
+  return probe.style.borderColor
+}
 
 /** jsdom also rewrites `#rrggbb` to `rgb(r, g, b)` on read-back. Compare through the same
  *  normalisation the DOM applies rather than by hex. */
@@ -63,8 +92,8 @@ describe('OverlayHeader — the leading control', () => {
   it('fills the glass control from the card tier, border included', () => {
     render(<OverlayHeader variant="glass" onBack={() => {}} backLabel="Cancel recording" />)
     const button = screen.getByRole('button', { name: 'Cancel recording' })
-    expect(norm(button.style.background)).toBe(norm(tier.card.gradient[0]))
-    expect(norm(button.style.borderColor)).toBe(norm(tier.card.border))
+    expect(button.style.background).toBe(jsdomBackground(tier.card.gradient[0]))
+    expect(button.style.borderColor).toBe(jsdomBorderColor(tier.card.border))
     expect(button.style.borderWidth).toBe('1px')
   })
 
@@ -73,8 +102,8 @@ describe('OverlayHeader — the leading control', () => {
   it('keeps the camera control on the frozen black scrim, never a palette overlay', () => {
     render(<OverlayHeader variant="cameraScrim" onBack={() => {}} backLabel="Close camera" />)
     const button = screen.getByRole('button', { name: 'Close camera' })
-    expect(norm(button.style.background)).toBe(norm(CAMERA_CHROME.controlScrim))
-    expect(norm(button.style.background)).not.toBe(norm(colors.overlay))
+    expect(button.style.background).toBe(jsdomBackground(CAMERA_CHROME.controlScrim))
+    expect(button.style.background).not.toBe(jsdomBackground(colors.overlay))
   })
 
   // MUTATION: swap the two `stroke` values between the CONTROL arms.

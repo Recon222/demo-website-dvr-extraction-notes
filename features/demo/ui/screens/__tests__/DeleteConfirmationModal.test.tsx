@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { DeleteConfirmationModal, type DeleteTarget } from '@/features/demo/ui/screens/DeleteConfirmationModal'
 import { DangerFill } from '@/features/demo/ui/controls/button-recipe'
-import { palette } from '@/features/demo/ui/tokens/palette'
+import { colors, scheme } from '@/features/demo/ui/tokens/palette'
 
 /** P3.1 / matrix row 15 — the phone's 2-arm delete confirmation (ui-mapping 11). */
 
@@ -85,10 +85,10 @@ describe('DeleteConfirmationModal — case variant (phone "Variation A")', () =>
     // mutation that pin could not see. Phone `Button.tsx:159-160` + `:234`.
     renderModal(locationTarget())
     const confirm = screen.getByTestId('delete-modal-confirm')
-    expect(confirm).toHaveStyle({ background: DangerFill.dark, color: palette.dark.onError })
-    expect(confirm.style.backgroundColor).not.toBe(hexToJsdomRgb(palette.dark.error))
+    expect(confirm).toHaveStyle({ background: DangerFill[scheme], color: colors.onError }) // W4/F85: indexed, as the recipe indexes it
+    expect(confirm.style.backgroundColor).not.toBe(hexToJsdomRgb(colors.error))
     // ...and the border matches the fill, so the control reads as one solid block.
-    expect(confirm).toHaveStyle({ borderTopColor: DangerFill.dark, borderBottomColor: DangerFill.dark })
+    expect(confirm).toHaveStyle({ borderTopColor: DangerFill[scheme], borderBottomColor: DangerFill[scheme] })
   })
 
   it('skips the warning lead-in and the list for a case with no locations', () => {

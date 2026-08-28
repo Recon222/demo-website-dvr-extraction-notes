@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AddRowButton, DateTimeField, Field, SectionCard, WizardNext } from '@/features/demo/ui/screens/_shared'
 import { ElevatedEdges, PrimaryButtonGradient } from '@/features/demo/ui/controls/button-recipe'
-import { palette } from '@/features/demo/ui/tokens/palette'
+import { colors, scheme, type ColorScheme } from '@/features/demo/ui/tokens/palette'
 import { stubClock } from '@/features/demo/ui/inputs/__tests__/test-utils'
 import { conflictingStyleWarnings } from '@/vitest.setup'
 
@@ -33,6 +33,22 @@ describe('_shared.DateTimeField', () => {
   })
 })
 
+/**
+ * A64's two shadows, both arms. `button-recipe.ts:179-188` spells them as inline scheme
+ * ternaries rather than as a `Record<ColorScheme, string>`, so there is nothing to index the
+ * way `ElevatedEdges` and `PrimaryButtonGradient` are indexed below; transcribing both arms
+ * here keeps the pin exact under either scheme instead of asserting whichever one ships today.
+ * Values from `button-recipe.ts:182-183` / `:187-188` (phone A64's RN five-prop mapping).
+ */
+const CTA_DROP_SHADOW = {
+  light: '0 6px 20px rgba(30, 58, 138, 0.22)',
+  dark: '0 6px 20px rgba(0, 0, 0, 0.45)',
+} as const satisfies Record<ColorScheme, string>
+const CTA_TEXT_SHADOW = {
+  light: '0 1px 1px rgba(0, 0, 0, 0.1)',
+  dark: '0 1px 1px rgba(255, 255, 255, 0.06)',
+} as const satisfies Record<ColorScheme, string>
+
 describe('_shared.WizardNext — the primary CTA ten wizard screens render (A64/A50/A51/A68)', () => {
   it('paints the gradient, both elevation edges and the CTA shadow from the shared recipe', () => {
     // The second ADOPTION pin (the first is `UserProfilePane.test.tsx`, on `outline`). `primary`
@@ -47,26 +63,29 @@ describe('_shared.WizardNext — the primary CTA ten wizard screens render (A64/
     // the constant rather than retyped — the same device `TerminalLine.test.tsx:116` uses. A pin
     // that compared hex strings here would be green over an empty declaration.
     expect(cta.style.background).toBe(
-      `linear-gradient(180deg, ${hexToJsdomRgb(PrimaryButtonGradient.dark[0])}, ${hexToJsdomRgb(PrimaryButtonGradient.dark[1])})`,
+      `linear-gradient(180deg, ${hexToJsdomRgb(PrimaryButtonGradient[scheme][0])}, ${hexToJsdomRgb(PrimaryButtonGradient[scheme][1])})`,
     )
 
     // A51: lit top, grounded bottom, transparent sides — four LONGHANDS, no shorthand.
-    expect(cta.style.borderTopColor).toBe(ElevatedEdges.dark.top)
-    expect(cta.style.borderBottomColor).toBe(ElevatedEdges.dark.bottom)
+    expect(cta.style.borderTopColor).toBe(ElevatedEdges[scheme].top)
+    expect(cta.style.borderBottomColor).toBe(ElevatedEdges[scheme].bottom)
     expect(cta.style.borderLeftColor).toBe('transparent')
     expect(cta.style.borderRightColor).toBe('transparent')
 
     // A64: the drop shadow replaces the demo's hand-rolled `0 6px 18px rgba(37,128,173,0.35)`,
     // which `CompletionScreen`'s own CTA duplicated byte for byte (demo §3.1).
-    expect(cta.style.boxShadow).toBe('0 6px 20px rgba(0, 0, 0, 0.45)')
-    expect(cta.style.textShadow).toBe('0 1px 1px rgba(255, 255, 255, 0.06)')
+    // W4/F85: transcribed per ARM, not per current scheme. Unlike its `ElevatedEdges` /
+    // `PrimaryButtonGradient` siblings the pair has no exported record to index —
+    // `button-recipe.ts:179-188` forks it inline — so the record lives here until it is lifted.
+    expect(cta.style.boxShadow).toBe(CTA_DROP_SHADOW[scheme])
+    expect(cta.style.textShadow).toBe(CTA_TEXT_SHADOW[scheme])
 
     // A68: the size step the phone defaults to. The demo had `padding: 14` and no min-height.
     expect(cta.style.minHeight).toBe('48px')
     expect(cta.style.padding).toBe('16px 24px')
     expect(cta.style.fontSize).toBe('16px')
     expect(cta.style.color).toBe('rgb(255, 255, 255)') // `onPrimary`, not the old `#fff` literal
-    expect(palette.dark.onPrimary).toBe('#ffffff')
+    expect(colors.onPrimary).toBe('#ffffff')
   })
 })
 
@@ -92,7 +111,7 @@ describe('_shared.SectionCard — the phone `FormSection` glass recipe (A77 / U6
     // 17 -> 18 is plan §4.9's ladder step, not a re-tune.
     expect(title.style.fontSize).toBe('18px')
     expect(title.style.fontWeight).toBe('600')
-    expect(title.style.color).toBe(hexToJsdomRgb(palette.dark.text))
+    expect(title.style.color).toBe(hexToJsdomRgb(colors.text))
     // `header` (`:176-183`): `paddingBottom: spacing.sm`, `borderBottomWidth: 1`, and
     // `marginBottom: spacing.md` SUMMED with `content`'s `marginTop: spacing.sm` (`:198`) —
     // see the component docblock for why the web spells the pair as one 24.
@@ -150,14 +169,14 @@ describe('_shared.Field — the phone `TextInput` label/help/error typography (A
     // The demo's `#cdd9e6` is not a palette token at all.
     expect(label.style.fontSize).toBe('14px')
     expect(label.style.fontWeight).toBe('500')
-    expect(label.style.color).toBe(hexToJsdomRgb(palette.dark.text))
+    expect(label.style.color).toBe(hexToJsdomRgb(colors.text))
     // `labelContainer:155-157` — `marginBottom: Layout.spacing.xs` (was 6).
     expect(label.style.marginBottom).toBe('4px')
   })
 
   it('paints the required asterisk from `colors.error` (`:110`)', () => {
     render(<Field label="Unit" required value="" onChange={vi.fn()} />)
-    expect(screen.getByText('*').style.color).toBe(hexToJsdomRgb(palette.dark.error))
+    expect(screen.getByText('*').style.color).toBe(hexToJsdomRgb(colors.error))
   })
 
   it('sets the helper line 14 in `textSecondary`, 4 below the box', () => {
@@ -167,7 +186,7 @@ describe('_shared.Field — the phone `TextInput` label/help/error typography (A
     render(<Field label="Display Name" value="" onChange={vi.fn()} hint="Friendly name for case" />)
     const hint = screen.getByText('Friendly name for case')
     expect(hint.style.fontSize).toBe('14px')
-    expect(hint.style.color).toBe(hexToJsdomRgb(palette.dark.textSecondary))
+    expect(hint.style.color).toBe(hexToJsdomRgb(colors.textSecondary))
     expect(hint.style.marginTop).toBe('4px')
   })
 
@@ -181,17 +200,17 @@ describe('_shared.Field — the phone `TextInput` label/help/error typography (A
     // (a non-text mark: 3.16 clears 1.4.11's 3.0) and the message takes `colors.text` (9.56).
     render(<Field label="Case Number" value="" onChange={vi.fn()} error="Case number is required" />)
     const alert = screen.getByRole('alert')
-    expect(alert.style.color).toBe(hexToJsdomRgb(palette.dark.text))
+    expect(alert.style.color).toBe(hexToJsdomRgb(colors.text))
     expect(alert.style.fontSize).toBe('14px')
     expect(alert.style.marginTop).toBe('4px')
 
     const icon = alert.querySelector('svg')
     expect(icon).not.toBeNull()
     expect(icon).toHaveAttribute('aria-hidden', 'true')
-    expect(icon).toHaveAttribute('stroke', palette.dark.error)
+    expect(icon).toHaveAttribute('stroke', colors.error)
     // The colour is on the ICON, not on the text — the two must not be the same value, or the
     // rule was not applied. This is the relational half the value pins cannot express.
-    expect(alert.style.color).not.toBe(hexToJsdomRgb(palette.dark.error))
+    expect(alert.style.color).not.toBe(hexToJsdomRgb(colors.error))
   })
 
   it('gives the multiline box the phone `styles.multiline` height (`:176`)', () => {
@@ -217,13 +236,13 @@ describe('_shared.Field — the phone `TextInput` label/help/error typography (A
     // is kept because it is a true property of this transition, but it is not the catch.
     const { rerender } = render(<Field label="Case Number" value="x" onChange={vi.fn()} />)
     const input = screen.getByRole('textbox') as HTMLInputElement
-    expect(input.style.border).toBe(`1px solid ${hexToJsdomRgb(palette.dark.border)}`)
+    expect(input.style.border).toBe(`1px solid ${hexToJsdomRgb(colors.border)}`)
 
     rerender(<Field label="Case Number" value="x" onChange={vi.fn()} error="Case number is required" />)
-    expect(input.style.border).toBe(`2px solid ${hexToJsdomRgb(palette.dark.error)}`)
+    expect(input.style.border).toBe(`2px solid ${hexToJsdomRgb(colors.error)}`)
 
     rerender(<Field label="Case Number" value="x" onChange={vi.fn()} />)
-    expect(input.style.border).toBe(`1px solid ${hexToJsdomRgb(palette.dark.border)}`)
+    expect(input.style.border).toBe(`1px solid ${hexToJsdomRgb(colors.border)}`)
 
     // Asserted HERE as well as in the setup's `afterEach`, so a future shape that DOES trip
     // React names this transition rather than arriving detached at the end of the file.
@@ -239,13 +258,13 @@ describe('_shared.AddRowButton — the "+ Add …" affordance the three array sc
     // what carries the affordance here.
     render(<AddRowButton label="+ Add Camera" onClick={vi.fn()} />)
     const btn = screen.getByRole('button', { name: '+ Add Camera' })
-    expect(btn.style.color).toBe(hexToJsdomRgb(palette.dark.link))
-    expect(btn.style.color).not.toBe(hexToJsdomRgb(palette.dark.primaryLight))
+    expect(btn.style.color).toBe(hexToJsdomRgb(colors.link))
+    expect(btn.style.color).not.toBe(hexToJsdomRgb(colors.primaryLight))
     // `radius.control` (10) and `spacing.base` (12) — the lifted values, now named.
     expect(btn.style.borderRadius).toBe('10px')
     expect(btn.style.padding).toBe('12px')
     expect(btn.style.borderStyle).toBe('dashed')
-    expect(btn.style.borderColor).toBe(hexToJsdomRgb(palette.dark.borderLight))
+    expect(btn.style.borderColor).toBe(hexToJsdomRgb(colors.borderLight))
   })
 })
 

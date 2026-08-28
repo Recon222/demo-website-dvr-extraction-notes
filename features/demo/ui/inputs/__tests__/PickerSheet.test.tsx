@@ -2,7 +2,12 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { PICKER_SHEET_Z, PickerSheet } from '@/features/demo/ui/inputs/PickerSheet'
+import { T } from '@/features/demo/ui/inputs/input-theme'
 import { PhoneOverlayContext } from '@/features/demo/ui/phone-overlay'
+
+/** jsdom rewrites an inline hex to `rgb(r, g, b)` on read-back. */
+const hexToJsdomRgb = (hex: string) =>
+  `rgb(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)})`
 
 describe('PickerSheet', () => {
   it('renders the title, children, and footer', () => {
@@ -127,7 +132,10 @@ describe('PickerSheet', () => {
     expect(body.firstElementChild).toHaveStyle({ padding: '16px' })
     const footerRow = screen.getByRole('button', { name: 'Done' }).parentElement!
     expect(footerRow).toHaveStyle({ paddingTop: '16px', paddingBottom: '4px' })
-    expect(footerRow.style.borderTop).toBe('1px solid rgb(28, 78, 132)')
+    // W4/F85 — CLASS 1: the divider is `1px solid ${T.border}` (`PickerSheet.tsx:38`), and the
+    // hex was hand-spelled here. Read off the token the component reads; `hexToJsdomRgb` is the
+    // repo's standard bridge for jsdom's `#rrggbb` -> `rgb(r, g, b)` rewrite.
+    expect(footerRow.style.borderTop).toBe(`1px solid ${hexToJsdomRgb(T.border)}`)
   })
 
   it('renders no footer node at all when the caller passes none', () => {

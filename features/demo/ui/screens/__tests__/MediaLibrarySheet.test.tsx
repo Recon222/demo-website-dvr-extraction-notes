@@ -69,7 +69,10 @@ const tab = (name: string) => screen.getByRole('button', { name })
  * tabs' 5.31. W0-F12: reverting any one of them was invisible to every suite, so the four
  * assertions below are the pin. Same idiom as `ExportHub.test.tsx:115-118`.
  */
-const LINK = 'rgb(184, 212, 240)'
+/** W4/F85: composed from the CONSUMED scheme, not the dark literal — the four sites below pin
+ *  that they read `link`, which is what W0-F12 found reverting was invisible to; which ARM of
+ *  `link` ships is the app scheme's business and moves with it. */
+const LINK = hexToRgb(colors.link)
 
 describe('the sheet header (P4.2’s title, kept)', () => {
   it('is the phone’s "Media Library" with the item total under it', () => {
@@ -511,7 +514,7 @@ describe('the fullscreen preview (row 65)', () => {
       name: 'Close fullscreen',
     })
     expect(close.style.background).toBe(MEDIA_CLOSE_CHIP)
-    expect(close.style.color).toBe('rgb(240, 244, 248)') // colors.text, as jsdom reads it back
+    expect(close.style.color).toBe(hexToRgb(colors.text)) // W4/F85: composed, not the dark literal
     // …and NOT the backdrop token, which is the resync this constant exists to refuse.
     expect(close.style.background).not.toBe(colors.scrim)
   })

@@ -218,8 +218,14 @@ describe('the page-sheet ground', () => {
     // `colors.modal` finds its adopter here; the second assertion is what stops either from being
     // quietly applied later. A38's tier is the BOTTOM-sheet ground and belongs to
     // `GlassBottomSheet` — putting it on a page sheet is A45's mistake-to-avoid in reverse.
+    //
+    // W4/F85. The second half used to be spelled `not.toBe(colors.modal)`. That assertion can
+    // never carry information: where the two tokens DIFFER (dark — `#002853` vs `#17416e`) the
+    // positive above already fails on a swap, and where they are the SAME literal (light —
+    // `#ffffff` both, Colors.ts:16 and Colors.ts:113) it is unsatisfiable no matter what the
+    // component paints. A rendered-value pin cannot see which of two equal tokens was spelled;
+    // the positive is the whole guard, and the paragraph above is the record of the intent.
     expect(modalSheet.background).toBe(colors.background)
-    expect(modalSheet.background).not.toBe(colors.modal)
   })
 
   it('keeps the demo-owned page-sheet geometry the phone has no number for', () => {

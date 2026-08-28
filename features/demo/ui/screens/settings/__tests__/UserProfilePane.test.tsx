@@ -8,7 +8,7 @@ import { SETTINGS_SHEET_Z } from '@/features/demo/ui/screens/settings/SettingsMo
 import { PICKER_SHEET_Z } from '@/features/demo/ui/inputs/PickerSheet'
 import type { UserProfile } from '@/features/demo/engine/types'
 import type { SaveStateKind } from '@/features/demo/engine/logic/save-status'
-import { palette } from '@/features/demo/ui/tokens/palette'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * The User Profile pane + its editor (P7.2, matrix rows 85/86).
@@ -94,8 +94,8 @@ describe('the pane — configured', () => {
     // it closes that, and this is the only A66 site with a test file to put it in.
     renderPane(FULL)
     expect(screen.getByTestId('user-profile-section-edit-button')).toHaveStyle({
-      color: palette.dark.link, // was `#4BA3D4` — 2.81:1 as 16px semibold on the pane's glass
-      borderTopColor: palette.dark.link, // was `#2B8CC1`; the recipe emits four side longhands
+      color: colors.link, // W4/F85: composed, not the dark arm. // was `#4BA3D4` — 2.81:1 as 16px semibold on the pane's glass
+      borderTopColor: colors.link, // was `#2B8CC1`; the recipe emits four side longhands
       borderRadius: '10px', // was a hand-rolled 8; A68 makes the corner one value
       minHeight: '44px', // `touchTarget.min` — the demo had no min-height on any button
       padding: '8px 16px', // `spacing.sm` / `spacing.md`; was '9px 16px'

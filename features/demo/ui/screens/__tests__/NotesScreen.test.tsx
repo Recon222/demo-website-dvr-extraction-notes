@@ -5,7 +5,7 @@ import type { NoteSectionMeta } from '@/features/demo/engine/logic/notes'
 import { createDemoStore } from '@/features/demo/engine/store/create-store'
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
 import { TERMINAL_PALETTE, TERMINAL_SCHEME } from '@/features/demo/ui/screens/import/terminal-palette'
-import { palette, scheme } from '@/features/demo/ui/tokens/palette'
+import { activeScheme, palette, scheme, type ColorScheme } from '@/features/demo/ui/tokens/palette'
 
 /** jsdom normalizes hex inline colours to rgb(r, g, b). */
 const rgb = (hex: string): string => {
@@ -75,9 +75,20 @@ describe('NotesScreen — the forced-dark console panel (U7.1 / A85, B.6 row 45)
   it('indexes `screen` with the APP scheme, not the console\'s forced-dark one', () => {
     // The phone leaves exactly this key scheme-forked (`NotesSectionEditor.tsx:105` reads
     // `screen[colorScheme]`) because the inset lifts a few points on a light app; everything
-    // INSIDE the panel is force-dark. Same object while the demo renders dark — the pin is
-    // that the two arms are different values, so the distinction is not decorative.
-    expect(TERMINAL_PALETTE.screen[scheme]).toBe(TERMINAL_PALETTE.screen.dark)
+    // INSIDE the panel is force-dark.
+    //
+    // W4/F85. The pin this replaces was `screen[scheme] === screen.dark`, which restates "the
+    // app currently ships dark" and nothing else: true today, false on the light flip, and
+    // blind to the `screen[TERMINAL_SCHEME]` mis-index it is named for in EITHER scheme. What
+    // follows asserts the panel takes the arm for the APP scheme and NOT the other one — the
+    // mis-index exactly, the moment the two schemes diverge. `activeScheme` because comparing
+    // the literal-typed `scheme` is the TS2367 shape W4/F84 closed.
+    const otherArm: ColorScheme = activeScheme === 'dark' ? 'light' : 'dark'
+    render(<NotesScreen {...props()} />)
+    const panel = screen.getByLabelText('address & visits').closest('div[style*="overflow-y"]') as HTMLElement
+    expect(panel.style.background).toBe(rgb(TERMINAL_PALETTE.screen[scheme]))
+    expect(panel.style.background).not.toBe(rgb(TERMINAL_PALETTE.screen[otherArm]))
+    // …and the fork is not decorative: the two arms are different values.
     expect(TERMINAL_PALETTE.screen.light).not.toBe(TERMINAL_PALETTE.screen.dark)
   })
 })

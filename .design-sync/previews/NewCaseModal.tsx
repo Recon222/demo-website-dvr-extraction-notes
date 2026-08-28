@@ -29,7 +29,7 @@ const FILLED = {
   incidentCity: 'Mississauga',
   incidentLatitude: '43.6012',
   incidentLongitude: '-79.6089',
-  incidentCoordinateSource: 'geocoded',
+  incidentCoordinateSource: 'geocoded' as const, // '' | 'manual' | 'geocoded' — a union, not `string`
   notes: 'Commercial break & enter overnight; entry via rear stockroom door. Recover Ch1/Ch3/Ch4.',
 }
 
@@ -46,7 +46,7 @@ const EMPTY = {
   incidentCity: '',
   incidentLatitude: '',
   incidentLongitude: '',
-  incidentCoordinateSource: '',
+  incidentCoordinateSource: '' as const, // the unset arm of the same union
   notes: '',
 }
 

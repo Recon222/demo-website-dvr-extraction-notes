@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, fireEvent } from '@testing-library/react'
 import { TimeWheel, indexFromScrollTop } from '@/features/demo/ui/inputs/TimeWheel'
+import { activeScheme } from '@/features/demo/ui/tokens/palette'
 
 const ROW = 44
 
@@ -75,7 +76,31 @@ describe('TimeWheel', () => {
  * `#060c16`, 27.77 CIE76 dE from its own sheet (`with-alpha.ts:56-65`). That mutation lands
  * `rgb(0, 24, 50)` here, which is darker than the well on every channel — so the fade would
  * paint a black band at both edges of the drum instead of disappearing into it.
+ *
+ * W4/F85 — the four numbers are now hand-computed PER SCHEME rather than for dark alone. Still
+ * hand-computed, for the reason above: routing the expectation back through `flattenOver` and
+ * the same two tokens production reads would move both sides together and pass over a wrong
+ * ground. Light's arithmetic, shown the same way: the well is `rgba(203,213,225,0.45)` /
+ * `rgba(226,232,240,0.35)` (`glass-tiers.ts` light.recessed, phone `Colors.ts:339`) over
+ * `T.raised` = `backgroundSecondary` `#f9fafb` (249,250,251) — 203*.45 + 249*.55 = 228.3 -> 228,
+ * 213*.45 + 250*.55 = 233.35 -> 233, 225*.45 + 251*.55 = 239.3 -> 239; and the lower stop at
+ * 0.35 the same way -> 241, 244, 247.
  */
+const FADE =
+  activeScheme === 'dark'
+    ? {
+        top: 'rgb(6, 37, 70)',
+        bottom: 'rgb(7, 45, 83)',
+        rawTop: 'rgb(0, 24, 50)',
+        rawBottom: 'rgb(0, 32, 64)',
+      }
+    : {
+        top: 'rgb(228, 233, 239)',
+        bottom: 'rgb(241, 244, 247)',
+        rawTop: 'rgb(203, 213, 225)',
+        rawBottom: 'rgb(226, 232, 240)',
+      }
+
 describe('TimeWheel drum-curvature fade', () => {
   it('ends at the well composited onto the panel, never at the raw well stop', () => {
     const { container } = render(<TimeWheel value={{ h: 0, mi: 0, s: 0 }} onChange={vi.fn()} />)
@@ -84,10 +109,10 @@ describe('TimeWheel drum-curvature fade', () => {
     const fade = Array.from(container.querySelectorAll('div')).find((d) =>
       d.style.backgroundImage.includes('42%'),
     ) as HTMLElement
-    expect(fade.style.backgroundImage).toContain('rgb(6, 37, 70) 0%')
-    expect(fade.style.backgroundImage).toContain('rgb(7, 45, 83) 100%')
-    // `withAlpha(stop, 1)` — the phone's own shipped defect — lands these instead.
-    expect(fade.style.backgroundImage).not.toContain('rgb(0, 24, 50)')
-    expect(fade.style.backgroundImage).not.toContain('rgb(0, 32, 64)')
+    expect(fade.style.backgroundImage).toContain(`${FADE.top} 0%`)
+    expect(fade.style.backgroundImage).toContain(`${FADE.bottom} 100%`)
+    // `withAlpha(stop, 1)` — the phone's own shipped defect — lands the raw well stops instead.
+    expect(fade.style.backgroundImage).not.toContain(FADE.rawTop)
+    expect(fade.style.backgroundImage).not.toContain(FADE.rawBottom)
   })
 })

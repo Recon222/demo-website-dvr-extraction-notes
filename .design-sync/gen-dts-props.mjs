@@ -116,7 +116,36 @@ function printType(type, node, depth = 0) {
     const alias = type.getAliasSymbol()?.getName() ?? type.getSymbol()?.getName()
     if (alias && alias !== '__type') return `React.${alias}`
   }
-  if (type.isArray()) return `${printType(type.getArrayElementType(), node, depth)}[]`
+  if (type.isArray()) {
+    const el = printType(type.getArrayElementType(), node, depth)
+    // W4/F83 — PARENTHESISE. `X[]` binds tighter than both `|` and `=>`, so an unparenthesised
+    // element that is a union or a function signature re-associates and the emitted contract is
+    // wrong in BOTH directions. Shipped evidence: `MapFiltersSheet.activeStatuses` was
+    //     'started' | 'working' | 'complete'[]
+    // which TypeScript reads as `'started' | 'working' | ('complete'[])`. That contract REJECTS
+    // the array the component actually takes AND ACCEPTS a bare `'started'` string — and the
+    // component's own `.includes()` on a string is a SUBSTRING test, so the design agent's
+    // "valid" call renders every status chip pressed. Same trap for `(() => void)[]`.
+    //
+    // Test for the operators on the PRINTED text rather than on the type: `printType` has
+    // already flattened aliases and expanded locals, so the string is what actually lands in the
+    // `.d.ts` and is the only thing whose precedence matters. A printed object literal
+    // (`{ a: string; b: () => void }`) contains `=>` but is already bracketed, so leading `{`
+    // exempts it — as do a leading `(` and an existing `React.X` name.
+    const needsParens = /\||=>/.test(el) && !/^[{(]/.test(el) && !el.endsWith('[]')
+    return needsParens ? `(${el})[]` : `${el}[]`
+  }
+  // W4/F83 — the INTERSECTION arm. Without it an intersection fell through to
+  // `clean(type.getText(...))` and emitted bare local names the `.d.ts` never defines:
+  // `SubmissionScreen.coordinates` shipped as `GpsCoordinates & { source: GpsSource; }`, with
+  // neither name bound. Printing each member through `printType` expands the local halves the
+  // same way every other object type is expanded.
+  if (type.isIntersection()) {
+    return type
+      .getIntersectionTypes()
+      .map((t) => printType(t, node, depth))
+      .join(' & ')
+  }
   // isBoolean() only catches the `boolean` keyword; the checker usually hands back the
   // union `true | false`, which would print as an unreadable `undefined | false | true`.
   if (type.isBoolean() || type.isBooleanLiteral()) return 'boolean'
@@ -131,14 +160,79 @@ function printType(type, node, depth = 0) {
     }
     return [...new Set(parts)].join(' | ')
   }
+  // W4/F83 residue — `Promise<T>`. Its own symbol is lib-declared, so `isLocalType` rejects it
+  // and `isPlainData` rejects it (`then`/`catch` are lib members); it fell through to
+  // `getText()` and emitted the WRAPPER verbatim, carrying an unexpanded local name inside it:
+  // `Promise<ReverseGeocodeResult | null>`, `Promise<OcrRecognizeOutcome>`. Unwrapping and
+  // re-printing the argument routes the inner type back through the local-expansion branch.
+  if (type.getSymbol()?.getName() === 'Promise') {
+    const [inner] = type.getTypeArguments()
+    if (inner) return `Promise<${printType(inner, node, depth + 1)}>`
+  }
+
   const callSigs = type.getCallSignatures()
   if (callSigs.length === 1) {
     const s = callSigs[0]
+    /**
+     * W4/F83 — ERASE type parameters. `cfg.dtsPropsFor` is a plain interface BODY string
+     * (`.ds-sync/package-build.mjs:821` passes `generics: ''` beside it), so there is nowhere to
+     * declare a `<K extends …>` binder. A generic signature printed as written therefore emits an
+     * UNBOUND name: `NewCaseModal.onChange` shipped as `(field: K, value: NewCaseFields[K]) => void`
+     * with no `K` anywhere in the file — unresolvable in principle, not merely unexpanded, which
+     * is why D-1's one-line intersection fix would never have covered it.
+     *
+     * Erasure, not invention: each parameter is replaced by its CONSTRAINT (`K extends keyof
+     * NewCaseFields` -> the key union), which is the widest type the signature actually accepts
+     * and the standard degradation for a contract that cannot carry binders. An unconstrained
+     * parameter erases to `unknown` — honest, and narrower than the `any` the old path implied.
+     * Applied to the printed text so it also catches `NewCaseFields[K]`, where `K` is nested
+     * inside an indexed access the checker prints verbatim.
+     */
+    const typeParams = s.getTypeParameters?.() ?? []
+    const erase = (text) => {
+      let out = text
+      for (const tp of typeParams) {
+        const tpName = tp.getSymbol()?.getName() ?? tp.getText?.()
+        if (!tpName) continue
+        const constraint = tp.getConstraint?.()
+        const replacement = constraint ? printType(constraint, node, depth + 1) : 'unknown'
+        // Whole-word only: `K` must not eat the `K` inside `Key` or `NewCaseFields`.
+        out = out.replace(new RegExp(`(?<![A-Za-z0-9_$])${tpName}(?![A-Za-z0-9_$])`, 'g'), replacement)
+      }
+      // `Fields[<union>]` after substitution is still an indexed access the emitted file cannot
+      // resolve if the object half is a local name; collapse it to the value type when the
+      // checker can give one, else leave it — `clean` already stripped import() paths.
+      return out
+    }
+    /**
+     * Resolve through the checker BEFORE printing, so an INDEXED ACCESS collapses.
+     * Substituting `K`'s constraint textually fixes `field: K` but leaves
+     * `value: NewCaseFields['caseNumber' | 'displayName' | …]` — still an unbound local name and
+     * still unresolvable in the emitted file, just a longer one. `getApparentType()` on
+     * `NewCaseFields[K]` gives the union of the property types the constraint selects, which is
+     * the real erased parameter type.
+     *
+     * NARROWLY applied, because `getApparentType()` BOXES primitives (`string` -> the `String`
+     * interface). Resolving every parameter of every generic signature would therefore trade one
+     * mis-encoding for another — measured: `NewCaseModal.onChange`'s `value` came back as
+     * `String`. So it runs only where the declared type actually MENTIONS one of this
+     * signature's type parameters (the only place erasure is needed), and the boxed spellings
+     * are mapped back for the case where the collapse itself lands on a primitive.
+     */
+    const tpNames = typeParams.map((tp) => tp.getSymbol()?.getName()).filter(Boolean)
+    const mentionsTypeParam = (t) => {
+      if (!tpNames.length) return false
+      const text = t.getText?.(node) ?? ''
+      return tpNames.some((n) => new RegExp(`(?<![A-Za-z0-9_$])${n}(?![A-Za-z0-9_$])`).test(text))
+    }
+    const UNBOX = { String: 'string', Number: 'number', Boolean: 'boolean', Symbol: 'symbol' }
+    const resolve = (t) => (mentionsTypeParam(t) ? t.getApparentType() : t)
+    const unbox = (text) => UNBOX[text] ?? text
     const params = s.getParameters().map((p) => {
-      const pt = p.getTypeAtLocation(node)
-      return `${p.getName()}: ${printType(pt, node, depth + 1)}`
+      const pt = resolve(p.getTypeAtLocation(node))
+      return `${p.getName()}: ${unbox(erase(printType(pt, node, depth + 1)))}`
     })
-    return `(${params.join(', ')}) => ${printType(s.getReturnType(), node, depth + 1)}`
+    return `(${params.join(', ')}) => ${unbox(erase(printType(resolve(s.getReturnType()), node, depth + 1)))}`
   }
   // A local object/interface -> expand to a literal so it needs no external name.
   if (type.isObject() && !type.isArray() && type.getProperties().length && (isLocalType(type) || isPlainData(type))) {
@@ -181,6 +275,52 @@ function propsBody(decl, name) {
   const props = type.getProperties()
   if (!props.length) return null
 
+  /**
+   * W4/F83 — a UNION props type is KNOWN-LOSSY, and the loss is now stated instead of hidden.
+   *
+   * `cfg.dtsPropsFor` is an interface BODY (`export interface XProps { <body> }`,
+   * `.ds-sync/package-build.mjs:821`), and a discriminated union is not expressible as one — not
+   * by `extends` either, which takes an intersection but never a union. So this cannot be fixed
+   * in the contract's own grammar, and F83's alternative is taken deliberately: record it.
+   *
+   * What was wrong before is not the loss, it is that the loss INVERTED the contract.
+   * `type.getProperties()` on a union returns only the members common to every arm, with
+   * optionality widened, so `OverlayHeaderProps` — `OverlayHeaderBase & ({ onBack(): void;
+   * backLabel: string } | { onBack?: undefined; backLabel?: undefined })` — shipped as
+   * `backLabel?: string; onBack?: () => void`. That is precisely the state W3/F74 closed:
+   * `<OverlayHeader variant="glass" onBack={fn} />` with no `backLabel` renders an icon-only
+   * button with NO accessible name. The generated contract told the design agent it was legal,
+   * six lines below a source comment saying it is not.
+   *
+   * A comment is valid inside an interface body and survives into the emitted `.d.ts`, so the
+   * constraint reaches the reader even though the type system cannot enforce it here. Only the
+   * arms that DISAGREE are named — listing every shared prop would bury the one that matters.
+   */
+  let unionNote = ''
+  if (type.isUnion()) {
+    const arms = type.getUnionTypes()
+    const namesPerArm = arms.map((a) => new Set(a.getProperties().map((p) => p.getName())))
+    const everywhere = [...namesPerArm[0]].filter((n) => namesPerArm.every((s) => s.has(n)))
+    const discriminating = [...new Set(namesPerArm.flatMap((s) => [...s]))]
+      .filter((n) => !everywhere.includes(n))
+      .concat(
+        // A prop present in every arm but REQUIRED in some and absent-typed in others is the
+        // `{ onBack(): void } | { onBack?: undefined }` shape — the pair, and the whole point.
+        everywhere.filter((n) =>
+          arms.some((a) => !a.getProperty(n)?.hasFlags?.(ts.SymbolFlags.Optional)) &&
+          arms.some((a) => a.getProperty(n)?.hasFlags?.(ts.SymbolFlags.Optional)),
+        ),
+      )
+    const listed = [...new Set(discriminating)].sort()
+    if (listed.length) {
+      unionNote =
+        `/* KNOWN-LOSSY (W4/F83): the real props type is a UNION of ${arms.length} arms and an ` +
+        `interface body cannot express one. ${listed.join(', ')} form a DISCRIMINATED GROUP — ` +
+        `pass all of them or none. The '?' below is an artefact of flattening the union, NOT ` +
+        `permission to pass one without the others. */ `
+    }
+  }
+
   const out = []
   for (const p of props) {
     const pt = p.getTypeAtLocation(param)
@@ -192,7 +332,7 @@ function propsBody(decl, name) {
     if (optional) text = text.replace(/^undefined \| /, '').replace(/ \| undefined$/, '')
     out.push(`${p.getName()}${optional ? '?' : ''}: ${text}`)
   }
-  return out.sort().join('; ')
+  return unionNote + out.sort().join('; ')
 }
 
 const dtsPropsFor = {}
