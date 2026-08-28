@@ -76,7 +76,7 @@ The demo's ground is **2.7× darker** in relative luminance. The rows barely mov
 
 **Fix** — `:358` → `colors.background`; `:386` → the same `GLASS.gradientCard` + `GLASS.borderSoft` (+ lit top edge per the lit-edge rule) the rows at `:61-74` already use, deleting `border: 'none'`. Both are one-line token swaps against values the drift guard already pins. Note `#0b1626` also appears at `ExitDialog.tsx:55` and `AddressAutocomplete.tsx:187` — see DP-4.
 
-**Status (DP-2)** — INVESTIGATED
+**Status (DP-2)** — **FIXED @ `d6e0afd`.** Panel ground -> `colors.background`; "Back to Cases" -> the row recipe (`GLASS.gradientCard` + `GLASS.borderSoft`), `border:'none'` gone. `AddressAutocomplete.tsx:187` fixed in the same commit (same hex, so the guard could not land without it). RED was a new `FAMILIES` entry, "the orphan panel navies"; probe: reverting the ground to `#0b1626` -> KILLED. **Follow-up, not done here:** the phone's drawer ROWS carry a lit top edge (`CustomDrawerContent.tsx:184-196` calls it out) and the demo's `itemButton` does not — a whole-drawer gap, deliberately not smuggled into this fix.
 
 ---
 
@@ -100,7 +100,7 @@ The demo's ground is **2.7× darker** in relative luminance. The rows barely mov
 
 Recommendation: **keep**, but only if the owner still wants the honesty line in a *transient* overlay — note ledger §59d already flags that it is sampled per drawer-open and never ticks, so a drawer left open reads "just now" indefinitely. If DP-3 is resolved by dropping the line, §59d's deferral resolves with it.
 
-**Status (DP-3)** — INVESTIGATED
+**Status (DP-3)** — **FIXED @ `30d7cd1`.** Save line removed, with `describeSaveStatus`/`formatSaveRecency`/`SaveStatusView` and their tests (no other consumer); `SaveState` stays for `store/persistence.ts`. Footer is now the phone's two centred lines: `DVREN` over `Interactive demo · v1.0.0`. `APP_NAME` renamed globally per the owner, so the About pane title, the copyright line and the support mailto follow it. Ledger §59d retires with the line. **Phone-side deletion still owed to the owner:** `src/hooks/useSaveStatus.ts:31` (the reader, zero production callers).
 
 ---
 
@@ -157,4 +157,9 @@ Recommendation: **keep**, but only if the owner still wants the honesty line in 
 
 Sized: ~17 sites, but only two guard edits carry the enforcement. No existing test pins any of these values (swept: zero hits under `features/demo/**/__tests__`), so the guard edits are the RED and the swaps are the GREEN.
 
-**Status (DP-4)** — INVESTIGATED
+**Status (DP-4)** — **PARTIAL @ `dfb9878`.** Guard-first, as ruled — but via `FAMILIES`, not the hex->rgb normaliser + widened `RETIRED` this row proposed: that mechanism already existed (regex over hex AND rgb/rgba, comment-stripped, ruled exemptions, two anti-vacuity controls), built after ledger §120 for exactly this. Four families added; rows 3, 8-14 swapped (rows 3/10/11 adopt `glassCardNested` exactly as U1.3 did at its three sibling sites). Three probes KILLED — including planting a SPACED `rgba(13, 27, 42, 0.55)` in a live file, which the old `RETIRED` sweep stayed green on in the same run.
+
+**AWAITING OWNER — four holds:**
+- **Rows 15-17 + the `modalScrim` SEAM(U4.4)** — per the owner's ruling. No family covers those colours, so the new guard does not red on them; nothing was exempted that did not need to be.
+- **Row 12 (`_shared.tsx:561`, the `Accordion`)** — exempted in the retired-navy family *with a comment*, because its phone counterpart (`FormSection.tsx:142-155`, non-glass) paints **no fill at all**. The port is "remove the ground", a visible design change rather than a token swap.
+- **Rows 5-7 (`#05080d` camera/recorder grounds)** — NEWLY discovered during implementation, and the reason they were not swept: `OcrCaptureScreen.tsx:577` paints `#05080d` as the **outer stop of a deliberate vignette** (`radial-gradient(ellipse at center, colors.background, #05080d)`) in the same file as the shell at `:576`, and `MediaCaptureScreen` has the same shape. A per-file guard cannot separate the shell from the vignette, and repainting four full-screen surfaces from near-black to navy is a bigger visual change than the drawer's — the owner has not seen it in a screenshot. Recommend ruling on these together with 15-17.
