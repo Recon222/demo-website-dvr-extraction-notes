@@ -1,3 +1,87 @@
+# Lane: web — W4
+
+## Round 1 (fix delta)
+
+**Seat:** `web-reviewer` (warm) · **Range read:** `git diff de1cd33..277564c`, head `277564c` ·
+worktree `w4-wave`, READ-ONLY. **Mine:** F86, F87.
+
+**Diagnostics:** `npx vitest run --silent=true features/demo/ui/{__tests__,controls/__tests__,screens/__tests__}` → **120 files / 1688 passed + 2 todo, exit 0.**
+
+| ID | Status |
+|---|---|
+| **F86** (3 ungated inline animations; deferral scope + spent trigger) | **FIXED** — 2 gated, 1 ledgered at §123 with a trigger that can fire |
+| **F87** (tab tints unmeasured; 0.14 margin) | **FIXED** — row 49, row 48's shape, plus the inversion asserted |
+
+**F86 — FIXED, and the reduce path renders correctly at both sites.** `SyncStatusCard.tsx:120` and
+`ExportActionSheet.tsx:182` both take `useReducedMotion()` from `motion/react`, the in-repo precedent,
+with the `animation: reduce ? undefined : …` shape used five other places. I checked the
+stuck-invisible risk at the keyframes, which is the failure mode this fix could have introduced:
+
+- `sheetUp` is `from { translateY(100%) } to { translateY(0) }` (`demo.css:115-118`) and the sheet's
+  resting style carries **no** `transform` (`ExportActionSheet.tsx:167-183` — `position: absolute`,
+  `bottom: 12`). With the animation dropped it renders at its final position. Pinned by name:
+  *"drops the sheetUp entrance under prefers-reduced-motion, **keeping the sheet**"*.
+- `spin` is `to { rotate(360deg) }` (`demo.css:85-87`), so the static SVG is a visible arc, and the
+  words "Synchronizing…" beside it carry the state regardless.
+
+Both use the established `vi.hoisted` mock seam rather than a new one. The hook placement is right and
+deliberately so: `SyncStatusCard`'s `useReducedMotion()` moved **above** its `if (!syncing && !sync)
+return null`, with a comment saying why — a rules-of-hooks violation was the live trap there and the
+fixer named it rather than tripping over it.
+
+**My 3-of-3 census is closed correctly, and the residue is properly ledgered.** §123 takes
+`PhoneFrame`'s `scanSweep` on the grounds I argued should be separated — the frame's ambient signature
+is a visual-design ruling, not a mechanical one — and it fixes both halves of what I flagged about
+Proposal B: it names the two mechanical siblings as FIXED so the row cannot be read as covering them,
+and its trigger is **"the U8-exit owner device pass, or the first post-campaign accessibility pass"**,
+neither of which is a package that has already shipped. That is a trigger that can fire, which was the
+sharper half of my finding.
+
+**F87 — FIXED, and the row does more than I asked.** `TAB_ACTIVE_TINT` / `TAB_INACTIVE_TINT` are
+exported from `TabBar.tsx:32-33` and rendered through (`:132`), and row 49 bounds both at
+`AA_NON_TEXT` over `palette[scheme].card` — one flat stop, correct now that U8.3 made the fill flat —
+with the at-the-constant pair on both sides (`toBe(primary)` / `toBe(textSecondary)` plus `not.toBe`
+between them). Row 48's shape exactly. **No value moved**, which is the right scope.
+
+My figures reproduce: `card`, `primary` and `textSecondary` are untouched by the fix diff (checked),
+so active **3.14** / inactive **5.82** hold by construction — and the fixer measured them
+independently in a probe worktree by flipping the bound to `toBe(99)` and reading the runner's
+message, landing on the same two numbers as my table.
+
+**The inversion is flagged, in three places, and the strongest of them is a pin.** The commit body
+says it outright (*"The perceptual inversion is NOT fixed here… the SELECTED mark is the dimmest of
+the four, which is backwards for a selection cue… recorded as an owner device-pass item"*), the row's
+comment repeats it, and — better than either — row 49 asserts
+`worst(TAB_ACTIVE_TINT) < worst(TAB_INACTIVE_TINT)`. That makes the inversion a *measured fact under
+test* rather than a note: the day someone fixes it, the row reds and forces the reviewer to notice the
+state changed. That is the right way to record-rather-than-fix a phone-verbatim value, and it is more
+than my remedy asked for.
+
+**The sweep-glow rider is phone-exact — verified at the phone source, not from the citation.**
+`PhoneFrame.tsx:29-44`'s `SCAN_GLOW = withAlpha(colors.primary, 0.8)` cites
+`GridBackground.tsx:145-155`; I opened it in the read-only sibling repo and the `scanLine` block reads
+`shadowOffset: {0,0}` · **`shadowOpacity: 0.8`** · `shadowRadius: 10` · `elevation: 2`. The 0.8 is
+exact. Composing it into the CSS colour is the only available spelling (CSS has one colour where RN
+has colour + opacity), and the docblock correctly declines to convert `shadowRadius: 10` into the CSS
+blur — this repo already ruled that RN's shadow props carry no fixed ratio (`glass-tokens.ts`'s
+`glassWell`), so the demo's lifted `12px` stays and only the colour moves. The capture-round note is
+honest about why it went unnoticed: the pre-rider composite measured *dimmer* than the teal it
+replaced, so nothing looked wrong while being wrong by construction.
+
+### Round 1 summary
+
+CRITICAL: 0 · HIGH: 0 · MEDIUM: 0 · LOW: 0
+Prior findings: **F86 FIXED · F87 FIXED.** No fix-introduced regressions in the blast radius.
+Verdict: **APPROVE**
+
+One carried nit, unchanged in severity: row 49 copies row 48's `expect(AA_NON_TEXT).toBeLessThan(AA_TEXT)`
+line and its rationale. It is a cheap tripwire on the file's two threshold constants, which is fine —
+but as in W3 round 2, the stated reason ("a later edit cannot collapse the row into the text bound")
+describes an edit to the row, not to the constants. Now a two-row pattern; still not worth a finding,
+worth one sentence if anyone edits either row.
+
+---
+
 # Lane: web — W4 (U8.1 splash/boot · U8.2 ambient · U8.3 tab bar · U8.4 previews)
 
 **Seat:** `web-reviewer` (warm) · **Mode:** code review · **Scope:** `git diff master...def2aec`,

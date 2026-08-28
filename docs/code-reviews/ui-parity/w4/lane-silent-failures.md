@@ -1,4 +1,162 @@
-# Lane — silent failures (W4: U8.1 boot · U8.2 ambient · U8.3 · U8.4 design-sync)
+# Lane — silent failures (W4)
+
+## Round 1 (fix delta)
+
+**Head:** `feat/uiparity-w4` @ `277564c` · **Fix diff read:** `de1cd33..277564c`
+**Authority:** `docs/code-reviews/ui-parity/w4/VETTED-r1.md`. My r1 HIGH is **F82**; my r1 MEDIUM
+(key-set-only guard) is recorded there as **SUBSUMED into F82**. The F85 manifest checked on request.
+**Probe worktree:** `C:\Users\kriss\AppData\Local\Temp\claude\probe-w4d-sfh-f82`, cut at `277564c`,
+detached, own `pnpm install`. **Torn down and verified:** `unlinked 549 junction(s) in 2 pass(es)` ·
+main checkout `.pnpm` 240 → 240 · exit 0. Tree restored between every probe; `git status` empty
+before teardown. At the fixed head, post-restore: **both typecheck programs exit 0** and the suite
+runs **1,744 passed + 2 todo, 0 failed.**
+
+Warm seat: I read the fix diff for `tsconfig.previews.json`, `package.json`, the six repaired
+previews, `design-sync-entry.test.ts` and the F85 manifest — not the r1 artefact. Every verdict below
+is a probe or a line opened at the current SHA.
+
+| Finding | r1 | Status | Evidence |
+|---|---|---|---|
+| **F82** — previews outside every gate, 8 drifted | HIGH | **FIXED — better than prescribed** | Planted drift now REDS; clean tree passes both programs |
+| **r1 MEDIUM** — no value-level tripwire | MEDIUM | **FIXED — with a real tripwire, not only by subsumption** | My exact r1 survivor now KILLS |
+| **F85 manifest** — O1 rationale, D1 ledger row | — | **Both claims hold; D1 reproduced to 4 decimals** | 2.5022 recomputed with the repo own helper |
+
+---
+
+### F82 — FIXED, and the fix found two things I did not
+
+`tsconfig.previews.json` shipped essentially as prescribed — `extends` the root, `jsx: react-jsx`,
+`paths` mapping `open-pro-next` to the generated `.design-sync/ds-entry.ts` — and
+`package.json:10` now runs it: `"typecheck": "tsc --noEmit && tsc -p tsconfig.previews.json"`. The
+docblock also corrects the wrong cause in `NOTES.md`, in the words the finding used: the
+dot-directory wildcard rule, not an unresolvable `open-pro-next`.
+
+Two additions I had not found and that were needed:
+
+- **The dual React type tree.** `.design-sync/node_modules` symlinks to `.ds-sync/node_modules`,
+  which carries its own `@types/react`; Node resolution walks up from the preview and finds that
+  copy while the transitive imports of `ds-entry.ts` find the repo copy. Two nominal `CSSProperties`
+  do not unify, and every lifted style fragment reds. Three `paths` entries pin `react`,
+  `react/jsx-runtime` and `csstype` to the repo copy. My probe never hit this because I ran before
+  that symlink existed in the tree; without it the gate would have shipped ~20 spurious TS2322s and
+  been switched off within a week.
+- **The marketing previews are enumerated in `exclude`, not pattern-filtered** — the two sets share
+  one directory and resolve through different bundle globals, so only an enumeration separates them.
+  That is the honest mechanism; a glob would have silently re-admitted them.
+
+**Probe — my r1 survivor, re-run verbatim** (canonical `.design-sync/previews/NotesScreen.tsx`,
+`sections` renamed to `sectionsBROKEN` on both stories):
+
+```
+r1:  npx tsc --noEmit -> exit 0, no output        (SURVIVED)
+now: tsc -p tsconfig.previews.json ->
+     NotesScreen.tsx(82,20): error TS2322: Property 'sectionsBROKEN' does not exist on
+                             type 'IntrinsicAttributes & NotesScreenProps'
+     NotesScreen.tsx(91,9):  error TS2322: (same, second story)
+```
+
+**KILLED**, on both stories, through the command `pnpm typecheck` runs.
+
+**The 8 drifted previews are genuinely repaired**, not suppressed: at `277564c` both programs exit 0
+with no output, and the new config widens nothing (no `@ts-expect-error`, no `skipLibCheck` bump).
+The `ModalShell` preview now passes the prop at both stories —
+`closeAccessibilityLabel="Close new case"` (`:41`) and `"Close add location"` (`:54`) — so the a11y
+prop U4.2 made required under D20, the one U8.4 cited as its own evidence while its preview omitted
+it, is present and distinct per story.
+
+---
+
+### r1 MEDIUM (value-level tripwire) — FIXED, and the vetted note undersells it
+
+`VETTED-r1.md:83` records this as SUBSUMED into F82 on the argument that typed previews hold the
+contracts to the real API. **That argument is only partly true mechanically** — the previews program
+resolves through `ds-entry.ts` to the real components and never reads `dtsPropsFor`, so a stale
+contract value is not, by itself, something the typecheck can see. It did not matter, because the
+fixer shipped the tripwire anyway:
+
+- **A degeneracy floor** — every contract must not be an index signature, must contain a colon, and
+  must be longer than a stub. Its comment names the exact regression it exists for
+  (`[DTS] parsed 0 .d.ts files` degrading all 37 to `{ [key: string]: unknown }`) and the reason it
+  is not a per-component expectation table (the change-detector trap).
+- **A named sentinel** — `expect(cfg.dtsPropsFor.ModalShell).toContain('closeAccessibilityLabel: string')`
+  **and** `.not.toContain('closeAccessibilityLabel?')`, so the optionality half cannot silently
+  re-legalise a nameless close button in the API the design agent codes against.
+
+**Probe — my exact r1 survivor.** Replacing `dtsPropsFor.ModalShell` with `"{ title: string }"`:
+
+```
+r1:  design-sync-entry.test.ts -> 40 passed                                   (SURVIVED)
+now: FAIL … keeps ModalShell required close label in the shipped contract
+     AssertionError: expected '{ title: string }' to contain 'closeAccessibilityLabel: string'
+     1 failed | 44 passed
+```
+
+**KILLED.**
+
+**Bounded residual, recorded not filed.** The same gutting applied to a component with no sentinel —
+`dtsPropsFor.TabBar` set to `"{ title: string }"` — **SURVIVES** (45 passed): the degeneracy floor
+accepts any body containing a colon. So value coverage is one named sentinel plus a floor, not
+general. I am not filing it, and I agree with the trade the comment states: a 37-row expectation
+table fails on every legitimate prop change and gets updated without being read, which is a worse
+guard than none. The residual is bounded by F82 in practice — the previews demonstrate real usage
+against the real API, so a wrong contract is contradicted by working example code in the same bundle.
+
+---
+
+### F85 manifest — both claims verified at source, and the honesty holds
+
+**O1 (`CentredDialog.test.tsx:552-557`) — a legitimate deliberate objector.** Measured:
+
+```
+light.overlay = rgba(0, 0, 0, 0.5)    light.scrim = rgba(0, 0, 0, 0.5)     -> IDENTICAL
+dark.overlay  = rgba(0, 40, 83, 0.9)  dark.scrim  = rgba(0, 40, 83, 0.32)  -> distinct
+```
+
+The assertion is a NEGATIVE pinning that the dialog scrim takes `overlay` and not `scrim` — the one
+place W2/F43 is enforced. In light the phone defines the two as the same value, so a `not.toBe`
+between identical strings cannot hold. The characterisation in the manifest is exactly right, and so
+are the two alternatives it names: deleting the only F43 enforcement, or inventing a light divergence
+from the source of truth. Marked at the assertion. Correct to keep.
+
+**D1 (`glass-well-recipe.test.tsx:221`) — a real defect, and NOT papered over.** Reproduced with the
+repo own `flattenOver` over the ground the test itself uses (`PANEL = colors.backgroundSecondary`):
+
+```
+light recessed stop 0  rgba(203,213,225,0.45)  dE 6.7542   (passes the 3.0 floor)
+light recessed stop 1  rgba(226,232,240,0.35)  dE 2.5022   (FAILS)
+```
+
+**The 2.50 in the manifest is exact to four decimal places.** Two things I checked rather than took:
+
+- The per-stop shape really is what caught it — stop 0 passes comfortably, so an aggregate or a
+  `Math.max` would have missed it. That is the lesson of plan §9 clause 2, firing.
+- The provenance is real: `tokens/glass-tiers.ts:114` carries the gradient with `// Colors.ts:339`
+  beside it, so the value is phone-verbatim and the defect is **inherited, not demo-introduced**.
+
+(Note for anyone re-checking: a hand-rolled compositor gives 2.65 on the same inputs. 2.5022 is the
+number the suite prints, which is the right one for a ledger row to quote — the delta is the
+`normColor` jsdom round-trip this file uses for every expectation, not a discrepancy.)
+
+The disposition is the honest one and I endorse it: the fix is a phone-side re-tint, the demo renders
+no light surface, and converting the pin would hide a real defect while suppressing it would defeat
+the row. The proposed ledger entry carries a real reason to wait and a concrete two-branch trigger
+(light opened for any demo surface, or the phone re-tinting `recessed.light`). This is the correct
+handling of a defect found by a triage that could easily have swept it in with the convention debt —
+worth recording as the best example of that in the wave.
+
+---
+
+### Round 1 summary
+F82 **FIXED** (r1 survivor now KILLED through `pnpm typecheck`; 8 previews repaired, both programs green) · r1 MEDIUM **FIXED** (a real tripwire shipped; r1 survivor KILLED).
+New findings: **none.** One bounded residual recorded (value coverage is one sentinel plus a degeneracy floor), deliberately not filed — the alternative is a change-detector table.
+Fix-introduced regressions: **none.** Both typecheck programs exit 0; suite 1,744 passed / 0 failed at the fixed head after restore.
+F85 manifest: O1 and D1 both verified at source; D1 reproduced to 2.5022 exactly.
+Probes this round: 5 — 2 KILLED (the two r1 survivors), 1 SURVIVED (the recorded residual), 2 confirmatory measurements.
+Verdict: **APPROVE.**
+
+---
+---
+## Round 0 (initial review)
 
 **Agent:** `silent-failure-hunter` · **Mode:** code review · **Scope:** `git diff master...def2aec`
 **Base contract:** `.claude/skills/fleet-orchestration/reviewer-contract.md`

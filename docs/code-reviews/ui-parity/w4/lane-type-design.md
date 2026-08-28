@@ -1,5 +1,247 @@
 # Lane: type-design — Wave 4 (U8.1 boot gate · U8.2 grid/teal · U8.3 tab bar · U8.4 design-sync)
 
+## Round 1 (fix delta)
+
+Warm, scoped. Phase branch `feat/uiparity-w4` @ `277564c`, delta `de1cd33..277564c`. Authority:
+`w4/VETTED-r1.md`'s Findings and Owner-routing tables (there is no PR for W4 — `gh pr list`
+returns 41/42/43 only — so the vetted doc on the branch is the mapping, as the brief states).
+Read the delta only, plus the lines each fix now depends on.
+
+Probes ran in `probe-w4d-td-flip` (own worktree off `277564c`), torn down via
+`tools/worktree-remove.ps1` — **"unlinked 549 junction(s) in 2 pass(es)"**, `.pnpm` 240 to 240,
+exit 0; branch deleted. Restores proven byte-identical (`git status --short` and `git diff --stat`
+both empty). One probe (DS1 re-run) ran on a scratch file OUTSIDE the repository using the repo's
+own `tsc`; nothing was written into either tree.
+
+Baseline at `277564c` BEFORE any mutation, BOTH programs (F82 added the second one):
+`tsc --noEmit --incremental false` -> **EXIT 0** · `tsc -p tsconfig.previews.json` -> **EXIT 0**.
+
+**My findings per the vetted doc: F83 (HIGH, promoted and merged with the typescript lane's
+generic-binder case), F89 (LOW).** The coordinator also asked me to judge **F84**'s
+`activeScheme` mechanism against my one-sided-key standards and to sanity-check **F82**'s
+`tsconfig.previews.json` paths pins. Judged below, marked as not-mine.
+
+---
+
+### F83 [HIGH] — **FIXED, all three mis-encodings; one residual, disclosed and correctly ceilinged**
+
+`c4fefc3` (+ `59ab7da`, an es5-target repair to the new scans). I re-ran my DS1 probe class against
+the **regenerated** contracts, transcribed verbatim out of `config.json` into a scratch file and
+checked with the repo's own tsc (`--strict --skipLibCheck`, React stubbed to two aliases):
+
+```
+A  activeStatuses = ['started', 'working']        (the component's REAL input)
+     round 0: TS2322 REJECTED     ->  now: accepted                       FIXED
+B  activeStatuses = 'started'     (a bare string), guarded by @ts-expect-error
+     round 0: accepted            ->  now: the directive is CONSUMED      FIXED
+     ^ no TS2578 "Unused '@ts-expect-error'" anywhere in the run, which is the
+       built-in negative control: had B still been accepted, the directive would
+       have gone unused and reported.
+D  NewCaseModalProps['onChange'] = (f, v) => {}   (the dropped generic binder)
+     round 0: unresolvable `K`    ->  now: resolves                       FIXED
+E  SubmissionScreenProps['coordinates'] = { lat, lng, source }  (the intersection)
+     round 0: dangling names      ->  now: resolves                       FIXED
+C  OverlayHeaderProps = { variant: 'glass', onBack: fn }   (F74's illegal state)
+     round 0: accepted            ->  now: STILL ACCEPTED                 residual, below
+Whole run: ZERO diagnostics — i.e. exactly the four intended outcomes and nothing else.
+```
+
+Residual class scan over **all 37** shipped contracts, not just the ones I named: unparenthesised
+union arrays **NONE**; dangling `K` / `GpsCoordinates` / `GpsSource` / `ReverseGeocodeResult` /
+`OcrRecognizeOutcome` **NONE**.
+
+**Three things go beyond the finding.** (i) A fourth mis-encoding I did not report was found and
+fixed in the same pass — `Promise<T>` fell through to `getText()` and shipped its argument
+unexpanded; `reverseGeocode` now emits `Promise<null | { streetAddress: string; city: string }>`.
+(ii) The generic fix is **erasure to the constraint**, not deletion: `K extends keyof NewCaseFields`
+becomes the key union, which is the widest type the signature genuinely accepts, and an
+unconstrained parameter erases to `unknown` rather than the `any` the old path implied. (iii) The
+pins are **three general scans**, not a 37-row expectation table, with the stated reason that a
+table "fails on every legitimate prop change and gets updated without being read" — and the
+paren scan's docblock records a MEASURED false-positive exclusion (`ExploreChecklist`,
+`WizardDrawer`, whose union arrays are already bracketed by a `}` or `)`). That is the shape this
+campaign has been asking scan authors for since W2.
+
+**The KNOWN-LOSSY marker, judged honestly, as asked.** Case C above is the whole of it: the marker
+is a comment, and **a comment is not a type** — the emitted interface still compiles F74's illegal
+state, and any tool that typechecks against the `.d.ts` will accept it. That residual is real and I
+am not going to describe it as closed.
+
+It is nonetheless the right disposition, for a reason I verified rather than accepted:
+
+- **The ceiling is external and genuine.** `cfg.dtsPropsFor` is an interface BODY string that the
+  emitter wraps as `export interface XProps { … }`. Expressing the union needs
+  `export type XProps = A | B`, i.e. a different emitter shape — and that emitter,
+  `package-build.mjs`, **is not in this repository** (verified: no such file outside
+  `node_modules`). Nothing in this wave's reach could have emitted the union.
+- **It is a MECHANISM, not a patch.** The marker is generated (`gen-dts-props.mjs:317`, composed
+  with `${arms.length}`), so it caught `NewCaseModal` too — a second union-props component I never
+  named, with the same discriminated-group wording.
+- **It sits in the artefact the consumer reads.** My round-0 fix line offered "record it in
+  `NOTES.md` beside the five dangling names"; putting it in the contract itself is strictly better,
+  because the design agent reads the `.d.ts` and not the sibling doc. The text is also the right
+  text — it names the group, says "pass all of them or none", and says the `?` is "an artefact of
+  flattening the union, NOT permission to pass one without the others".
+- **It is pinned.** `design-sync-entry.test.ts` asserts both `KNOWN-LOSSY` and
+  `DISCRIMINATED GROUP` are present, so a regeneration that silently drops the marker reds.
+
+**Deferral proposed** (house format; the aggregator decides and is the ledger's sole writer):
+**Source** W4/F83, this lane's fix-delta. **What** `OverlayHeader` and `NewCaseModal` ship
+prop contracts that flatten a discriminated union to optional properties; the loss is marked in
+the contract and pinned, but the emitted interface still type-checks the illegal state (probe C).
+**Why deferred** the emitter that would have to switch from `export interface XProps { body }` to
+`export type XProps = A | B` lives outside this repository, so no in-repo change can close it.
+**Trigger** the design-sync emitter gaining a type-alias emission path, or any third component
+acquiring a union props type (at which point the flatten is a pattern rather than two exceptions).
+
+---
+
+### F89 [LOW] — **FIXED, better than prescribed**
+
+`d9439c7`. My fix line offered "replace 'is the only thing' with the two records, or delete the
+exclusivity clause". They did more than either: re-probed at the W4 head, listed the five
+diagnostics with their modules, and then **refused to restate a count at all** —
+
+> *"What the union still guarantees is the property, not the count: a fourth member cannot be
+> added silently. **Do not re-state a diagnostic count here** — the next total record over this
+> union moves it again, and a stale count reads as a verified fact."*
+
+That is the F49 / F68 lesson generalised at the root rather than applied once, and it is the third
+time this campaign has paid for a hand-maintained figure in a comment.
+
+**PROBE S2r — canonical source, one compiler run, no test-file filter this time** (my round-0 S2
+filtered `__tests__`, which is why I reported three diagnostics in two modules and they report
+five in three; theirs is the fuller count and mine was the narrower view of the same mutation):
+
+```
+add 'failed' to BOOT_HUD_STATES (boot.ts:48)
+  scanner-hud-colors.ts:104          TS1360
+  SplashScreen.tsx:62                TS7053
+  SplashScreen.tsx:76                TS2741
+  __tests__/SplashScreen.test.tsx:90   TS7053
+  __tests__/SplashScreen.test.tsx:104  TS7053
+  -> 5 diagnostics, 3 modules, and TS2741 is no longer the first one reported   KILLED
+```
+
+Exactly the corrected docblock's claim, in kind, count and ordering.
+
+**One note, not a finding.** The two `SplashScreen.tsx` line cites in the new docblock read `:61`
+and `:72`; measured at this head they are `:62` and `:76` — the file moved under a later commit in
+the same round. Trivial, unpinned, and the correction's own thesis ("do not re-state a figure that
+moves") argues those two line numbers should not have been spelled either. Worth a sentence to
+whoever writes the closing note; not worth a finding, and I am not filing one.
+
+---
+
+## Not my findings — judged at the coordinator's request
+
+### F84 [HIGH] (aggregator) — **FIXED, and the shape is right by my standards**
+
+`3ff31ba`. `export const activeScheme: ColorScheme = scheme` (`palette.ts`), with the six
+`=== 'dark'` gates re-pointed at it.
+
+Three things I checked, because the risk in adding a second exported name for one value is that the
+wrong one gets used:
+
+1. **It does not widen anything downstream.** `scheme` keeps its literal `'dark'` type, so
+   `palette[scheme]` is still exactly `typeof dark`, `colors.*` keeps its literal types, and every
+   `as const satisfies` consumer in the repo is untouched. The commit's own reasoning for widening
+   the comparison rather than the export quotes the `satisfies` docblock's promise — *"no
+   consumer's inferred type moved by a character"* — and it is correct: annotating the export
+   would have made `colors` the union and moved all of them.
+2. **`activeScheme` is used at COMPARISON sites only.** Measured: six `=== 'dark'` reads
+   (`button-recipe.ts:181,186`, `sheet-chrome.ts:227,242`, and two test sites) and **zero** index
+   sites — `grep "\[activeScheme\]"` over `features/` returns nothing. An index read is the one
+   misuse that would silently widen a call site's inferred type, and none exists.
+3. **A typed `const`, not a cast.** `(scheme as ColorScheme) === 'dark'` would silence the same
+   TS2367 while lying if `scheme` ever stopped being a `ColorScheme`; the binding fails to compile
+   instead. Same argument that makes `light` a `satisfies` rather than an annotation, applied
+   consistently.
+
+**My one-sided-key standard is unaffected**: `PaletteToken = keyof typeof dark` and
+`light … as const satisfies Record<PaletteToken, string>` are structurally untouched by this fix,
+so round-0's G1/G2 result (both directions closed) still holds.
+
+**PROBE FLIP — the finding's actual subject, canonical source, one run per program:** flip the
+one-site switch to `export const scheme = 'light' satisfies ColorScheme`.
+
+```
+tsc --noEmit --incremental false        -> EXIT 0      the flip COMPILES
+tsc -p tsconfig.previews.json           -> EXIT 0      and so does the preview program
+```
+
+Clause 12's "flipping the demo to light is a one-site change" is a compiling claim again, on both
+programs. It is also a second, independent confirmation of point 1: a widened `colors` would have
+produced errors under the flip, and there are none.
+
+### F82 [HIGH] (silent-failures) — paths pins **sane**, sanity-check only
+
+`4b7d4dc`. The three `paths` entries do what their comment says and the reason is measured rather
+than guessed: `.design-sync/node_modules` is a symlink to `.ds-sync/node_modules`, which carries
+its own `@types/react`, so node resolution walks up from a preview and finds that copy while
+`ds-entry.ts`'s transitive imports find the repo's — two nominal type trees that do not unify, and
+`csstype` is named because it is the transitive dependency the mismatch surfaces on. Three entries
+(`react`, `react/jsx-runtime`, `csstype`) is the right count for `jsx: react-jsx`.
+
+`open-pro-next` -> `./.design-sync/ds-entry.ts` is the load-bearing line and it is honest: it maps
+to the same generated entry the bundler builds from, so a preview is typechecked against the REAL
+component props. Scoping it to a second config rather than widening the root's `include` is
+correct — that mapping is a lie everywhere else in the repo, since app code must never import the
+design bundle.
+
+Arithmetic checks out: **58** preview `.tsx` files = **37** in-program (exactly `componentSrcMap`'s
+37 non-null entries) + **21** marketing previews excluded. Wired into the gate
+(`package.json`: `"typecheck": "tsc --noEmit && tsc -p tsconfig.previews.json"`), and both
+programs are EXIT 0 at this head. No finding.
+
+---
+
+## Regression sweep over the fix commits' blast radius
+
+- **`gen-dts-props.mjs` gained four printer branches and a type-parameter eraser**, and its output
+  is 37 contracts. The blast radius is exactly those contracts, and I checked all of them rather
+  than the four I named: two residual class scans clean, and the four transcribed cases resolve
+  under `--strict`. `59ab7da` repaired the one thing the new code broke on its own account (an
+  iterator spread that fails this repo's `target: es5`) — caught by the gate, not by a reviewer.
+- **`activeScheme` is additive.** Nothing was removed from `palette.ts`; `scheme` and `colors` are
+  byte-identical. The six re-pointed sites are all comparisons; the four production ones
+  (`button-recipe`, `sheet-chrome`) still gate the same dark-only shadows.
+- **F82 put 37 previews into a program for the first time**, which is a new gate over previously
+  unchecked files. It is green at head, and the root program is unchanged (`tsc --noEmit` EXIT 0),
+  so nothing that used to compile stopped.
+- **F89 is comment-only** — `git show d9439c7` touches one docblock; no code path moved.
+- **My round-0 census result is unchanged**: no fix commit introduced a module-level
+  `const X: CSSProperties | Record<…>` table (re-scanned the fix diff; zero hits), so the
+  F20/F38/F61 class stays closed through this round too.
+
+**No fix-introduced regressions in my lane.**
+
+---
+
+## Type Design Summary (Round 1 fix delta)
+CRITICAL: 0 · HIGH: 0 · MEDIUM: 0 · LOW: 0
+Prior-round findings: **F83, F89 — 2 of 2 FIXED.** 0 PARTIAL, 0 UNFIXED.
+Judged at request (not mine): **F84 FIXED** (flip compiles, both programs) · **F82 paths pins sane**.
+One deferral PROPOSED (F83's union-props residual — external emitter ceiling; see above).
+Verdict: **APPROVE**
+
+| Check | Result |
+|---|---|
+| DS1 re-run on the regenerated contracts | **4 of 5 cases flipped to correct**; whole run zero diagnostics, with the `@ts-expect-error` on the bare-string case acting as the built-in negative control |
+| Residual mis-encodings across all 37 contracts | **none** — zero unparenthesised union arrays, zero unresolvable type names |
+| The KNOWN-LOSSY marker, judged honestly | **a mitigation, not a closure** — case C still compiles. Correct disposition all the same: the emitter is outside this repo, the marker is generated (so it caught a second component), it lives in the artefact the agent reads, and it is pinned. Residual proposed as a ledger row with a trigger |
+| F84's `activeScheme` vs my one-sided-key standards | **compatible** — literal `scheme` preserved, `PaletteToken`/`light satisfies` untouched, comparison-only usage (zero index sites), typed const not a cast |
+| Does clause 12's flip compile | **yes** — PROBE FLIP: EXIT 0 on both the root and the previews program |
+| F82 paths pins | **sane** — three React pins with a measured cause, one honest `open-pro-next` mapping, 37 + 21 = 58 arithmetic checks out, wired into `pnpm typecheck` |
+| Fixes address the finding, not the symptom | **yes** — F83 fixed a fourth mis-encoding I never reported and pinned with general scans rather than an expectation table; F89 removed the class of claim rather than correcting one instance |
+| Fix-introduced regressions in blast radius | **none** |
+| Mutation probes this round | **3 run — 2 KILLED (S2r: 5 diagnostics / 3 modules, matching the corrected docblock in kind, count and ordering; DS1 re-run: 4 of 5 cases now correct with an in-run negative control), 1 CLEAN (PROBE FLIP: EXIT 0 on both programs, which is the intended result and doubles as the no-widening control for F84)**. Restores proven byte-identical; worktree torn down with the script's proof line |
+
+Out-of-lane observations:
+- `tsconfig.previews.json`'s 21-name `exclude` is a hand-typed roster with no pin. The safe direction is covered — `include` is a glob, so a new DEMO preview enters the program automatically — and the silent direction needs someone to wrongly add a demo preview to a 21-line literal, which is a reviewable act. By my own §27 precedent (static, single-author literal) I would not spend type machinery on it; flagging only because the tests lane may want a one-line pin that the exclude set and `componentSrcMap` partition the directory.
+- F84 ships two exported names for one value. Nothing prevents a future `palette[activeScheme]`, which would widen that call site's inferred types silently; zero such uses today and the docblock says why. Not filed — no reachable invalid state — but it is the kind of thing that is cheap to catch in a later census.
+# Lane: type-design — Wave 4 (U8.1 boot gate · U8.2 grid/teal · U8.3 tab bar · U8.4 design-sync)
+
 **Mode:** code review (round 1) · **Tree:** `worktrees/w4-wave` @ `def2aec`, read-only ·
 **Scope:** `git diff master...def2aec` — 9 non-test source files, 1 new
 (`ui/screens/scanner-hud-colors.ts`), plus `.design-sync/` (generator, config, 4 new previews).

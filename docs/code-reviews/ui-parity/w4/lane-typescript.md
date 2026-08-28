@@ -1,4 +1,210 @@
-# Lane: typescript — W4 (U8.1 splash/boot · U8.2 ambient · U8.3 tab bar · U8.4 design-sync)
+# Lane: typescript — W4
+
+## Round 1 (fix delta)
+
+**Head:** `feat/uiparity-w4` @ `277564c` · fix diff `de1cd33..277564c` (55 files, +1,527/−320).
+**Mode:** warm — delta only; nothing confirmed from memory.
+
+**Authority note (contract §7).** There is **no PR for W4** — `gh pr list --head feat/uiparity-w4`
+returns empty, so there is no mapping comment. I used `docs/code-reviews/ui-parity/w4/VETTED-r1.md`
+as the authority instead; it covers my finding explicitly (**F83**, which merged my MEDIUM with
+type-design's HIGH into one HIGH and records *"D-1's ledger proposal is REFUSED as scoped"*). Flagging
+the substitution rather than passing over it — the round is judgeable, but the artifact the contract
+names did not exist.
+
+**Cold gates at `277564c`, reproduced in my own tree:**
+
+| Gate | Exit | Result |
+|---|---|---|
+| `npx tsc --noEmit --incremental false` | **0** | clean |
+| `npx vitest run` | **0** | **310 files, 4,334 passed + 2 todo** (+8 vs r0) |
+
+---
+
+### My finding — status
+
+| F | r0 label | Status |
+|---|---|---|
+| **F83** (my D-1-under-scope MEDIUM, merged into td's HIGH) | MEDIUM | **PARTIAL — 2 of 3 repairs land; the third loses a constraint** |
+
+#### F83 repair 1 — union-array parens: **FIXED**
+
+`MapFiltersSheet.activeStatuses` now reads `('started' | 'working' | 'complete')[]` in the
+regenerated `config.json`. Verified at the shipped contract, not the diff.
+
+#### F83 repair 2 — the `OverlayHeader` union flatten: **FIXED**, via the sanctioned second arm
+
+F83's fix line offered "add the `isIntersection()` arm AND make a union-of-objects props type print
+as a union (**or** record `OverlayHeader` as KNOWN-LOSSY in NOTES.md — say which)". They took the
+KNOWN-LOSSY arm and said which, and they put the notice **inside the emitted contract string**
+rather than in `NOTES.md`:
+
+```
+/* KNOWN-LOSSY (W4/F83): the real props type is a UNION of 2 arms and an interface body cannot
+   express one. backLabel, onBack form a DISCRIMINATED GROUP — pass all of them or none. The '?'
+   below is an artefact of flattening the union, NOT permission to pass one without the others. */
+```
+
+That is better than the arm as written: the warning is where the design agent reads the contract, not
+in a file it may never open. Judged on the merits — sound, and it directly answers the W3/F74
+re-publication F83 objected to.
+
+#### F83 repair 3 — the generic binder: **PARTIAL. The erasure drops a union the source says must not be dropped.**
+
+The coordinator's brief expected `<K extends keyof NewCaseFields>`. It is **not** there — I checked
+the regenerated contract for a binder (`'<K extends' in v` → `False`) — and that is legitimate,
+because F83's fix line offered two arms: *"print the type-parameter list **or degrade a generic
+signature to its erased form**"*. They took the erased arm. The unbound `K` is genuinely gone
+(`False` for a bare `K` too), so the r0 defect I filed is closed.
+
+**But the erasure is not faithful.** What ships now:
+
+```
+onChange: (field: 'notes' | 'caseNumber' | … | 'incidentCoordinateSource', value: string) => void
+```
+
+`NewCaseFields` has 14 keys; 13 are `string` and one is **not**:
+
+```ts
+// caseFormData.ts — the field, and its own docblock
+incidentCoordinateSource: '' | 'geocoded' | 'manual'
+//  "The UNION, not bare `string` (review R-13, discharging §53d's fired trigger)."
+```
+
+and the prop's source comment three lines above the signature says the same thing from the other
+side (`NewCaseModal.tsx:21-23`):
+
+> *"Field-typed, **not `(field, value: string)`** (review R-13): the provenance field is a union, and
+> a keyed setter that accepts any `string` would let a typo through to a persisted, PDF-rendered
+> value."*
+
+The emitted contract is `(field, value: string)` — **the exact shape both comments name as the
+defect R-13 fixed.** A design agent coding against it can write
+`onChange('incidentCoordinateSource', 'gecoded')` and the contract accepts it. This is the same
+class as F83's own objection (b) — a contract telling the agent an illegal state is legal, against a
+source comment sitting feet away — and it is the one F83 arm that shipped without the KNOWN-LOSSY
+notice its sibling got.
+
+**I own half of this:** my r0 prescription named the erased form explicitly, and even wrote out
+`value: NewCaseFields[keyof NewCaseFields]` without noticing that collapses to `string`. An author
+who followed the reviewer's own words did nothing wrong. The bar F83 set is what is unmet, not their
+execution of my line.
+
+**Fix (one line, and the pattern is already in the same commit):** give `NewCaseModal.onChange` the
+same inline KNOWN-LOSSY notice `OverlayHeader` got, naming `incidentCoordinateSource` as
+union-constrained despite the erased `value: string`. Printing the binder instead would also do it
+and is strictly better, but is not required to clear the bar.
+
+#### D-1's withdrawal: **SOUND**
+
+`VETTED-r1.md:36` refuses D-1 as scoped and says *"after F83 the residue (if any) gets a row with an
+honest cause table."* That is exactly right, and it is the disposition my finding argued for. **A
+residue exists** — repair 3 above — so the promised row is now owed, with the cause stated as
+"generic erasure drops a union constraint", not as "intersections".
+
+---
+
+### The three checks the brief assigned me
+
+#### F84 — `activeScheme`: architecture is clean, no inconsistent consumer
+
+`palette.ts` adds `export const activeScheme: ColorScheme = scheme` — a **typed const, not a cast**,
+which is the right instrument: `(scheme as ColorScheme)` would silence the same TS2367 while lying if
+`scheme` ever stopped being a `ColorScheme`. Widening at the export was correctly rejected (it would
+make `colors` the union and move every consumer's inferred type — the thing `satisfies` was chosen to
+prevent). This matches F84's own prescription, "widen the COMPARISON, not the export".
+
+Swept all three ways a mixed `scheme` / `activeScheme` codebase goes wrong:
+
+| Risk | Sweep | Result |
+|---|---|---|
+| `activeScheme` used to INDEX (would widen inference, defeating `satisfies`) | `\[\s*activeScheme\s*\]` across `features app lib` | **0 hits** |
+| A surviving `scheme === …` comparison (would fail the flip's compile leg) | `[^e]scheme\s*===` | **0 in code** (one docblock hit in `palette.ts:268`) |
+| A file importing both and using them interchangeably | read all 5 dual-import sites | **correct split** — `scheme` indexes / feeds `satisfies typeof`, `activeScheme` only ever appears left of `=== 'dark'` |
+
+All 8 `activeScheme` call sites are comparisons. Nothing imports it for any other purpose. §119's
+recount also shows `button-recipe.ts`'s retained `scheme` import is **not** flagged unused, so the
+dual import is real, not a leftover.
+
+Worth recording: F84's sweep **over-reached into two sites** (`palette-contrast.test.ts:639,687`),
+converting scheme-relative *parameters* into the module switch. F85 caught both and reverted them
+(`b172719`, "two F84 reverts"), and the reverted sites carry comments explaining which question each
+is asking. Self-corrected within the round — noted as evidence the two fixes were reconciled, not
+stacked.
+
+#### F85 — ~28 files: three conversions spot-checked, **no weakened pin found**
+
+Picked across families, weighting the one whose history shows a correction:
+
+1. **`map/__tests__/LocationRow.test.tsx`** (two commits — `9a89848` then `5a683ab`). Old:
+   `expect(borderTopColor).not.toBe(side)`. New: a POSITIVE equality against
+   `GLASS_TIER[scheme].card.highlightTop`. **Strictly stronger**, and I verified the refutation
+   behind it independently at source rather than taking the comment's word: `light.card.border` and
+   `light.card.highlightTop` are **byte-identical** (`rgba(148,163,184,0.45)`), so the old negative
+   really was a dark-only fact that the flip would have failed. **Probe:** collapsed the fragment
+   (`glass-tokens.ts:234` `borderTopColor: tier.card.highlightTop` → `tier.card.border`) → **KILLED**.
+   *Boundary I will not overclaim:* the probe proves the converted pin is falsifiable and unweakened;
+   it does not adjudicate the comment's further claim that it catches a collapse the old pin missed,
+   which would need the old pin re-instated alongside.
+2. **`__tests__/DemoExperience.sandbox.test.tsx`** — two hand-spelled dark hexes →
+   `withAlpha(colors.warning, 0.36)` / `colors.success`. Not a tautology: the assertion's claim is a
+   RELATION (amber, not green) that holds in either scheme, and the 0.36 stays literal so an alpha
+   change still reds.
+3. **`inputs/__tests__/TimeWheel.test.tsx`** — the most careful of the three. They **declined** to
+   route the expectation back through `flattenOver` (which would have moved both sides together and
+   passed over a wrong ground — the tautology trap) and instead hand-computed light's four values,
+   showing the arithmetic in the docblock. I re-did it: 203·.45 + 249·.55 = 228.3 → 228; 213·.45 +
+   250·.55 = 233.35 → 233; 225·.45 + 251·.55 = 239.3 → 239. **Correct.** The independent-oracle
+   property is preserved.
+
+#### §119 recount — **still 6, unchanged from W3; 0 introduced by W4 or its fix round**
+
+Cold `tsc --noEmit --incremental false --noUnusedLocals` returns the identical six diagnostics I
+blamed line-by-line in the W3 delta (`create-store.ts:20`, `boot.test.ts:28`, `banner.test.tsx:8,107`,
+`header-chrome.test.tsx:45`, `CaseActionsSheet.test.tsx:5`) — all pre-existing, five in `__tests__`.
+Neither the ~28-file F85 sweep nor F84's new imports added one, which is the non-obvious result here:
+a conversion touching that many files usually strands an import.
+
+---
+
+### Fix-introduced regressions in my lane: none found
+
+Re-swept at `277564c`, not carried from r0: store bridge **0** · engine purity **0** · barrel diff vs
+master **0 lines** · marketing wall **0 imports**. Plain `tsc` exit 0; suite 310/310 green with 8 net
+new tests. `tsconfig.previews.json` (new, F82) puts the 37 previews in a tsc program — that closes my
+r0 out-of-lane observation about the preview corpus being untyped, and its 19 repaired errors across
+8 files are exactly the drift that was previously invisible.
+
+### New findings this round
+
+None beyond the F83 PARTIAL recorded above.
+
+---
+
+## TypeScript Lane Summary (Round 1 — fix delta)
+CRITICAL: 0 · HIGH: 0 · MEDIUM: 0 · LOW: 0 (new)
+Prior: **F83 PARTIAL** — repairs 1 and 2 FIXED and verified at the shipped contract; repair 3 closes
+the unbound `K` but its erasure drops `incidentCoordinateSource`'s union, re-publishing the exact
+`(field, value: string)` shape two source comments name as R-13's defect. One inline KNOWN-LOSSY
+notice — the pattern its sibling `OverlayHeader` already got in the same commit — clears it.
+**D-1's withdrawal is SOUND**; the residue row it promised is now owed, with the cause stated as
+generic erasure, not intersections.
+Verdict: **APPROVE with comments** (the PARTIAL is a one-line doc-in-contract repair, not a blocker;
+the aggregator may prefer REVISE if it holds F83's bar strictly — I have no objection either way).
+
+Store-bridge integrity: preserved · Engine purity: preserved
+Barrel + marketing/demo isolation: preserved · Determinism seam: preserved
+§119: **6**, unchanged from W3, 0 fix-introduced.
+
+Probes: 1 (LocationRow fragment collapse — KILLED); restored, `git status` clean, worktree torn down.
+Authority substitution declared above: no W4 PR exists, so `VETTED-r1.md` stood in for the mapping
+comment.
+Out-of-lane observations from r0: the preview-typecheck one is **discharged by F82's
+`tsconfig.previews.json`**; the `design-sync-entry.test.ts:69` message-clarity note stands, unchanged.
+
+---
+
+## Round 0 (initial review) — retained as the evidence base
 
 **Scope:** `git diff master...def2aec` — 65 files, +3,366/−209. The port's final wave.
 **Mode:** code review. **Base contract:** `.claude/skills/fleet-orchestration/reviewer-contract.md`.
@@ -227,3 +433,9 @@ All restored, worktree torn down, main checkout's gitignored `.ds-sync` verified
 Ledger rows proposed: none of my own — but see the MEDIUM, which is a correction to the scope of
 **U8.4's D-1** before the aggregator writes it.
 Out-of-lane observations: 2 (listed above).
+
+---
+
+**END OF FILE.** Operative verdict = the **Round 1 (fix delta)** summary above:
+F83 PARTIAL, 0 new findings, APPROVE with comments. Everything below "Round 0" is the initial
+review, retained unaltered.

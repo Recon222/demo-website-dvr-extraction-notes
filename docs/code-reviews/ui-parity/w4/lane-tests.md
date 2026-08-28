@@ -1,4 +1,70 @@
-# Lane: tests — W4 (U8.1–U8.4, the closing wave), `feat/uiparity-w4` @ `def2aec` vs `master`
+# Lane: tests — W4
+
+## Round 1 (fix delta)
+
+**Head:** `feat/uiparity-w4` @ `277564c` · **Fix diff read:** `de1cd33..277564c` · **Authority:**
+**there is no PR and therefore no mapping comment** — `gh pr view` returns *"no pull requests found
+for branch feat/uiparity-w4"*. Per contract §7 I am flagging that rather than working around it
+silently; I proceeded on the disk artifacts (`w4/VETTED-r1.md`, `w4/lightflip-objector-manifest.md`,
+and the per-finding commit trailers), which do cover every ID I was given — **F82** (supersedes my
+r0 MEDIUM), **F86**, **F87**, **F88**, **F85**. Nothing below confirms an ID I could not find on disk.
+
+**Cold gates, my own probe worktree** (`probe-w4d-tests` @ `277564c`, install 15.4 s):
+`vitest run` → **310 files / 4,334 passed | 2 todo (4,336), exit 0** · `pnpm typecheck`
+(`tsc --noEmit && tsc -p tsconfig.previews.json`) → **exit 0, 0 errors**. Motion mode motion-ON.
+Every mutation on the canonical source in my own worktree; verdicts from exit codes; restore proven
+after each probe and at the end (`git diff 277564c --stat` empty, suite and typecheck re-green).
+
+### Per-finding status
+
+| F | Status | Evidence |
+|---|---|---|
+| **My r0 MEDIUM → F82** | **FIXED — and my finding is superseded exactly as the vetted doc says** | `4b7d4dc` adds `tsconfig.previews.json` and `package.json`'s `typecheck` script is now `tsc --noEmit && tsc -p tsconfig.previews.json`. **My E2 measurement re-run and inverted:** `tsc -p tsconfig.previews.json --listFiles \| grep -c "design-sync/previews"` → **37** (was 0); the root program still reports 0, which is correct — the previews are in their OWN program, not smuggled into the app's. **The class probe (E1') now KILLS:** renaming `Banner`'s `message` prop gives `PREVIEWS_TSC_EXIT=2`, 13 errors, naming `.design-sync/previews/Banner.tsx(27,31) TS2322` — the drift that was invisible to every gate at r0 is now a compile error at the line. **D-2's REFUSAL is correct**: with the previews compiled on every `pnpm typecheck`, the un-fireable trigger I filed against has no row left to sit in. VETTED also corrected D-2's stated *reason* to the dot-directory mechanism I measured, so the record is right for whoever reads it next. |
+| **F88** | **FIXED** | `fdf2816`. **T3 re-run verbatim** (`const t = '#4ecdc4ff'` planted in `controls/TabBar.tsx`): **KILLED**, 2 failed / 1 passed — was SURVIVED. The fix went past my prescription: `{3,8}` (matching every sibling scan, not just `{6,8}`) plus an `expandHex` that doubles `#rgb`/`#rgba` and truncates the alpha, with four new control lines including the two that matter — `#4ec` and `#4ecf` must expand to `#44eecc` and stay silent, so widening the pattern cannot invent matches. |
+| **F86** | **FIXED — two-sided** | `55b1b87`. **F86a** (drop `ExportActionSheet`'s gate) reproduces the commit's quoted RED **verbatim**: `expected 'sheetUp 0.28s ease' to be ''`. **F86b** (drop `SyncStatusCard`'s spinner gate) → **KILLED**. **F86c** — the half worth probing, because a "just delete the animation" fix passes a gate-only pin: deleting the animation outright → **KILLED** (`expected '' to co…`). The re-anchored selectors read the rendered node, and each case also asserts what must SURVIVE the gate (the sheet and its three menuitems, the spinner glyph and its word). `PhoneFrame`'s `scanSweep` split out to §123 with an owner trigger is the right call — it is a design question, not a defect. |
+| **F87** | **FIXED — two-sided** | `c7e82fe`. **Y1** (active tint → `colors.border`, i.e. the ratio collapses) → **KILLED**, `expected 1.38 to be greater than…`. **Y2** — the assertion that carries the finding: active tint := `colors.textSecondary`, so the ratio still clears 3.0 but the selection cue vanishes → **KILLED**, `expected '#99badd' to be '#2B8CC1'`. Bound + AT-THE-CONSTANT + `not.toBe` between the two, and `AA_NON_TEXT < AA_TEXT` so the row cannot be collapsed into the text bound. Exactly row 48's shape. **But see the new finding below — this row's last assertion is a fresh flip-day objector.** |
+| **F85** | **PARTIAL** | The triage itself is excellent and I confirm its substance: my own flip reproduces **O1** (`CentredDialog.test.tsx`) and **D1** (`glass-well-recipe.test.tsx`) precisely, and `FLIP_TYPECHECK_EXIT=0` closes F84. What does not hold is the manifest's completeness claim at the merged head — see below. |
+
+### New finding (fix-introduced, in the blast radius of F87)
+
+### [HIGH] The light-flip manifest says "no unexplained objectors" — at the MERGED head there are THREE, and the third is a fresh instance of the very class F85 exists to remove, written by an F87 fix commit that landed after the manifest was measured
+File: `features/demo/ui/__tests__/palette-contrast.test.ts`, row 49's last assertion (added by `c7e82fe`) — `expect(round(worst(TAB_ACTIVE_TINT, BAR))).toBeLessThan(round(worst(TAB_INACTIVE_TINT, BAR)))`; the claim it falsifies: `docs/code-reviews/ui-parity/w4/lightflip-objector-manifest.md:27` — *"**Both remaining reds are accounted for below. There are no unexplained objectors.**"*, over a table reading **2 failed / 2 files**.
+Issue: I replicated the clause-12 flip myself at `277564c` — one line, one site, `palette.ts:261` `'dark'` → `'light'`, in a throwaway worktree, never committed. Result: **`FLIP_TYPECHECK_EXIT=0`** (F84 genuinely closed) but the suite is **3 failed / 3 files (4,331 passed | 2 todo)** — `CentredDialog.test.tsx` (O1), `glass-well-recipe.test.tsx` (D1) **and `palette-contrast.test.ts`, which the manifest does not list**. Scoped re-run names it: `row 49: BOTH tab-bar tints clear the NON-TEXT floor on the bar's own fill (W4/F87)` — `AssertionError: expected 10.36 to be less than 7.56`.
+The assertion pins the dark half's *relation* as if it were a contract: in dark the active mark is dimmer than the inactive (3.14 < 5.82), which the row's own comment describes as *"a perceptual inversion of what a selection cue should be"* and records as an owner device-pass item. In light the inversion **corrects itself** (active 10.36, inactive 7.56) — so the pin reds precisely when the product gets better. Its values are correctly `palette[scheme]`-relative; its *relation* is not. That is the F85 class exactly ("pins that asserted the SHIPPED scheme, not a contract"), reintroduced inside the round that swept 75 of them.
+Evidence — why it is a clean-merge defect and nobody's individual mistake: `git merge-base --is-ancestor c7e82fe 3f9bad3` → **NO**. F87 (`c7e82fe`, 19:41, the `u8.3` fix branch) is **not** an ancestor of `3f9bad3` (the `u8.4` F85 triage branch where the flip was run, manifest committed 21:35). The two branches are parallel and were merged separately into `feat/uiparity-w4`; the flip could not have seen row 49, and the flip was not re-run at the merged head. This is W3's hazard-#2 shape one wave on — a defect that exists only in the combined tree, with every constituent branch green.
+Severity: the manifest is the clause-12 exit evidence for the whole campaign and its falsifiable claim is false at the head that ships; the flip day has no reviewer, which is where the severity rides. Bounded honestly: nothing a visitor sees is wrong today, and the third objector is a *pin* defect, not a light-half defect.
+Fix (one line, plus one line of process): make the relation scheme-relative or drop it — either `if (scheme === 'dark')`-gate it as the manifest's §3 does for other deliberate dark-spelled pins and add it to that list, or replace it with the fact the row actually wants to preserve (`TAB_ACTIVE_TINT !== TAB_INACTIVE_TINT`, already asserted two lines above, plus the measured 3.14 recorded as a comment for the device pass). Then **re-run the flip at `HEAD` and re-cut the manifest's Result table** — the manifest should carry the SHA it was measured at, which it currently does (`3f9bad3`) but the round treated as if it were the merged head.
+
+### Fix-introduced regressions elsewhere: none
+Sampled the blast radius of every fix commit that touches a test file I had not already probed: `59ab7da` (es5 `Array.from` repair — typecheck exit 0 confirms), `ca96e73`/`467cf8d`/`ccd3072` (the `jsdomBackground` round-trip and its named solid-colour ceiling — the helper still throws rather than passing an unparsed value through, so the r0 non-tautology verdict stands), `8d50aa0` (two quoted test counts corrected in earlier commit bodies — the round self-audited its own prose, which is the behaviour the campaign has been asking for). Baseline moved 4,326 → 4,334 with no deletions.
+
+### Probe ledger (round 1)
+
+**13 runs · 13 valid · 11 KILLED · 1 SURVIVED-as-designed (`#4ec`/`#4ecf` non-match, a control) ·
+1 measurement (the flip).** Worktree `probe-w4d-tests` @ `277564c`, branch deleted. One mutation per
+probe; verdicts from exit codes; the phone repo never written to. Restore proven after each and at
+the end: `git diff 277564c --stat` empty, `vitest run` 310/4,334/exit 0, `pnpm typecheck` exit 0.
+Teardown: `unlinked 549 junction(s) in 2 pass(es)` · `.pnpm` 240 → 240 · exit 0.
+
+One extra edge, recorded not filed: `expandHex`'s docblock says *"5- and 7-digit runs … simply never
+equal the needle"*. Measured — `#4ecdc4f` (7 digits) truncates to `#4ecdc4` and DOES equal it, so a
+7-digit run sharing the first six digits reports as an offender. It fails **closed** (a false red on a
+string that is not a valid CSS colour), there are zero such literals in the tree, and the fix is a
+comment edit. Below the bar for a finding; noted so the next reader of that sentence is not misled.
+
+## Tests Summary (Round 1 fix delta)
+CRITICAL: 0 · HIGH: 1 (new, fix-introduced) · MEDIUM: 0 · LOW: 0
+Prior findings: my r0 MEDIUM **superseded/FIXED via F82**; **F88 FIXED**; F86 **FIXED**; F87 **FIXED**
+(with the rider above); F85 **PARTIAL** — triage sound, manifest stale at the merged head.
+Verdict: **REVISE**
+Out-of-lane observations:
+- **No PR exists for `feat/uiparity-w4`**, so contract §7's mapping comment could not be read. The disk artifacts covered it this time; the orchestrator should know the authority was substituted.
+- **Two probe worktrees are still live** — `f85-screens-probe` @ `0c33fbe` and `probe-u8.4-lightflip` @ `3f9bad3`. Neither is mine. The second is the exact tree the stale manifest was measured in, still pinned at the pre-merge SHA, which is plausibly *why* nobody re-ran the flip at the head: the answer was already sitting in a tree that looked current. The mutation skill's isolation rule ends at teardown for this reason.
+
+---
+
+# Round 0 (initial review) — retained below
+
 
 **Mode:** code review · **Lane question:** are the wave's new pins behaviourally meaningful, do they
 pin what they claim, and would they catch a realistic regression?
