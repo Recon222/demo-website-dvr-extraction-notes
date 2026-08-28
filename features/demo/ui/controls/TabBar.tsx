@@ -19,6 +19,19 @@ export type TabId = TabView
  */
 export const TAB_BAR_HEIGHT = 50
 
+/**
+ * The two icon tints, the phone's `tabBarActiveTintColor` / `tabBarInactiveTintColor`
+ * (`app/(tabs)/_layout.tsx:13-14`).
+ *
+ * EXPORTED so `__tests__/palette-contrast.test.ts` row 49 can bound them at the constant
+ * rather than retyping the hexes — the `DangerFill` lesson that file's docblock records: a
+ * duplicated literal in the pin stays green through exactly the edit it exists to catch.
+ * Both are non-text MARKS (there are no labels in this bar), so 1.4.11's 3:1 governs, not
+ * 1.4.3's 4.5. Measured on the bar's own `card` fill: active 3.14, inactive 5.82.
+ */
+export const TAB_ACTIVE_TINT = colors.primary
+export const TAB_INACTIVE_TINT = colors.textSecondary
+
 const tab: CSSProperties = {
   flex: 1,
   display: 'flex',
@@ -116,7 +129,7 @@ export function TabBar({ active, onSelect }: { active: TabView; onSelect(tab: Ta
           {/* `tabBarActiveTintColor` / `tabBarInactiveTintColor` (`(tabs)/_layout.tsx:13-14`).
               The two stroke widths are demo-only: the phone carries no `tabBarIconStyle` and
               Ionicons has no weight axis, so 1.9/1.8 has nothing to port against. */}
-          {TAB_ICONS[id](active === id ? colors.primary : colors.textSecondary, active === id ? 1.9 : 1.8)}
+          {TAB_ICONS[id](active === id ? TAB_ACTIVE_TINT : TAB_INACTIVE_TINT, active === id ? 1.9 : 1.8)}
         </button>
       ))}
     </div>

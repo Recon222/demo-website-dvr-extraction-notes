@@ -27,6 +27,7 @@ import {
   SCANNER_SKIP_PILL,
 } from '@/features/demo/ui/screens/scanner-hud-colors'
 import { UNCHECKED_MARK_EDGE } from '@/features/demo/ui/controls/choice-controls'
+import { TAB_ACTIVE_TINT, TAB_INACTIVE_TINT } from '@/features/demo/ui/controls/TabBar'
 
 /**
  * Palette contrast contract — ported from the phone's
@@ -1022,6 +1023,42 @@ describe('map chrome contrast floors', () => {
     // is why row 47 exists separately; asserting the two floors differ keeps a later edit from
     // quietly collapsing this row into 46/47's bound and calling it green.
     expect(AA_NON_TEXT).toBeLessThan(AA_TEXT)
+  })
+
+  // Row 49 (W4/F87) - the tab bar's two tints, the claim U8.3 made and did not measure.
+  //
+  // U8.3 ported the bar to the phone's `tabBarStyle` verbatim: a flat `card` fill with
+  // `primary` active / `textSecondary` inactive (`app/(tabs)/_layout.tsx:13-19`). The inactive
+  // half went 2.84 -> 5.82 and is a clear win; the ACTIVE half went 4.51 -> 3.14 and became the
+  // dimmest of the four icons - the selection cue is the least prominent mark in a bar that has
+  // no labels to carry the tint the way the phone's do. Same shape as row 48 one wave earlier,
+  // and the same reason: an assertion about a ratio that nobody bounded.
+  it('row 49: BOTH tab-bar tints clear the NON-TEXT floor on the bar`s own fill (W4/F87)', () => {
+    // The bar is a FLAT `colors.card` fill (U8.3 - the demo's old gradient had no phone
+    // counterpart), so the ground is one stop, not a glass stack. Both icons are non-text
+    // MARKS: this bar renders glyphs only, so 1.4.11's 3:1 governs.
+    const BAR = [[palette[scheme].card]]
+    // 3.14 in the consumed scheme - over the floor by 0.14. That margin is the point of
+    // the bound: it survives no re-tint, and without this row a palette move that ate it would
+    // be a device-pass discovery with every suite green.
+    expect(round(worst(TAB_ACTIVE_TINT, BAR))).toBeGreaterThanOrEqual(AA_NON_TEXT)
+    expect(round(worst(TAB_INACTIVE_TINT, BAR))).toBeGreaterThanOrEqual(AA_NON_TEXT)
+
+    // AT THE CONSTANT, both sides (W2/F27) - the same shape as row 48. The bound alone says
+    // nothing about WHICH value is present, and here the negative is what carries the finding:
+    // the active tint must stay distinguishable from the inactive one, because `aria-current`
+    // is the only OTHER cue and it is invisible to a sighted visitor.
+    expect(TAB_ACTIVE_TINT).toBe(palette[scheme].primary)
+    expect(TAB_INACTIVE_TINT).toBe(palette[scheme].textSecondary)
+    expect(TAB_ACTIVE_TINT).not.toBe(TAB_INACTIVE_TINT)
+
+    // ...and the floor is the NON-TEXT one. 3.14 would FAIL as text, which is exactly why this
+    // row cannot be collapsed into an `AA_TEXT` bound and called green - and it is the figure
+    // behind the OWNER DEVICE-PASS item this row records rather than fixes: the ACTIVE mark is
+    // dimmer than the inactive one (3.14 < 5.82), a perceptual inversion of what a selection
+    // cue should be. Phone-verbatim, so not re-tinted at this desk.
+    expect(AA_NON_TEXT).toBeLessThan(AA_TEXT)
+    expect(round(worst(TAB_ACTIVE_TINT, BAR))).toBeLessThan(round(worst(TAB_INACTIVE_TINT, BAR)))
   })
 
   it('row 45b (F60): the sheet`s HINT is body text and clears the same floor', () => {
