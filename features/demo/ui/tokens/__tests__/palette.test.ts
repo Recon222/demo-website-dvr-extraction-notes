@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
-import { palette, colors, scheme, type PaletteToken } from '@/features/demo/ui/tokens/palette'
+import { palette, colors, scheme, SCHEME_KEY, setScheme, type PaletteToken } from '@/features/demo/ui/tokens/palette'
 import { T } from '@/features/demo/ui/inputs/input-theme'
 
 // Guards for the U0.1 palette port (matrix A1-A9, A19, A27, A28).
@@ -207,6 +207,86 @@ describe('palette (U0.1 / A1-A9, A19, A27, A28)', () => {
     // per-consumer override no value pin in this file would see). Which half it points at is
     // the switch and is meant to move; that it is a bare pointer at THAT half is not.
     expect(colors).toBe(palette[scheme])
+  })
+
+  /**
+   * SEAM(LM1) — the switch is now a VISITOR CHOICE, so what needs pinning is the round trip.
+   *
+   * Every assertion here re-imports the module rather than reading the top-level `scheme`
+   * binding: that binding is the one this file's own import evaluated, and the whole mechanism
+   * is that the read happens ONCE PER PAGE LOAD. `vi.resetModules()` + `await import(...)` is
+   * the closest thing a jsdom suite has to a reload, and it is what makes these pins falsifiable
+   * — a `setScheme` that writes the wrong key, a `readScheme` that reads the wrong one, and a
+   * default flipped to `'light'` each red exactly one row below. Asserting `sessionStorage`
+   * contents directly would pass through all three.
+   */
+  describe('the consumed scheme is the visitor’s choice, read once per load', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals()
+      vi.restoreAllMocks()
+      window.sessionStorage.removeItem(SCHEME_KEY)
+      vi.resetModules()
+    })
+
+    /** Re-evaluate `palette.ts` the way a page load does. */
+    const reload = async () => {
+      vi.resetModules()
+      return import('@/features/demo/ui/tokens/palette')
+    }
+
+    /** Stub the navigation `setScheme` performs — jsdom's real one is a "Not implemented". */
+    const stubReload = () => {
+      const spy = vi.fn()
+      vi.stubGlobal('location', { ...window.location, reload: spy })
+      return spy
+    }
+
+    it('defaults to DARK with nothing stored — the state every other pin in the repo assumes', async () => {
+      window.sessionStorage.removeItem(SCHEME_KEY)
+      const next = await reload()
+      expect(next.scheme).toBe('dark')
+      expect(next.colors).toBe(next.palette.dark)
+      // The widened alias has to follow the read, not a frozen literal.
+      expect(next.activeScheme).toBe('dark')
+    })
+
+    it('setScheme("light") persists, restarts, and the NEXT load renders the light half', async () => {
+      const spy = stubReload()
+      setScheme('light')
+      expect(spy).toHaveBeenCalledTimes(1)
+
+      const next = await reload()
+      expect(next.scheme).toBe('light')
+      expect(next.colors).toBe(next.palette.light)
+      expect(next.activeScheme).toBe('light')
+    })
+
+    it('setScheme("dark") gets back — the choice is not one-way', async () => {
+      stubReload()
+      setScheme('light')
+      setScheme('dark')
+      expect((await reload()).scheme).toBe('dark')
+    })
+
+    it('an unrecognised stored value is DARK, not a crash and not a half-painted screen', async () => {
+      window.sessionStorage.setItem(SCHEME_KEY, 'sepia')
+      expect((await reload()).scheme).toBe('dark')
+    })
+
+    it('does NOT restart when the choice cannot be stored', async () => {
+      // Storage-blocked contexts (private mode, sandboxed embeds) are the only path here.
+      // Reloading anyway would land back on `dark` and read as a switch that flips itself back
+      // a beat later; not reloading leaves it visibly where it was, which is the truth.
+      const spy = stubReload()
+      const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new DOMException('blocked', 'SecurityError')
+      })
+      setScheme('light')
+      expect(setItem).toHaveBeenCalledTimes(1)
+      expect(spy).not.toHaveBeenCalled()
+      setItem.mockRestore()
+      expect((await reload()).scheme).toBe('dark')
+    })
   })
 
   it('keeps the retired navy ramp out of every UI source file', () => {

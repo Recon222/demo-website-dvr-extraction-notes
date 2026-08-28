@@ -102,11 +102,13 @@ export interface DemoSettings {
 
 /**
  * The phone's defaults, field for field. `darkMode: true` is the one value with no phone
- * default to copy — the phone's switch reads `ThemeContext.isDark`, and the demo's phone frame
- * renders the dark theme and only the dark theme (`ui/screens/map/mapTokens.ts:41`,
- * `import/ImportTerminalProgress.tsx:28`), so `true` is the state of the thing the switch
- * describes. The Appearance pane refuses to let it be changed rather than moving a switch over
- * a theme that cannot follow — see `AppearancePane`.
+ * default to copy — the phone's switch reads `ThemeContext.isDark` — and it is also the one
+ * value here that is NOT the value the app runs on. The demo's live scheme is a `sessionStorage`
+ * read performed at module init by `ui/tokens/palette.ts` (SEAM(LM1)), which this engine module
+ * must not import: `engine/` is framework-agnostic and does not reach into `ui/`. So `true` is
+ * the DEFAULT-of-the-default — dark, matching the palette's own fallback — and `DemoExperience`
+ * overrides it from `activeScheme` when it seeds this record, which is the site that legitimately
+ * sees both layers. Nothing downstream of the pane reads this; the palette does not consult it.
  *
  * Annotated `Readonly<…>` (R-25): the mutable annotation was discarding exactly the guarantee
  * `Object.freeze` is here to provide — assigning through it type-checked and then threw at

@@ -5,6 +5,7 @@ import { SETTINGS_CATEGORY_IDS } from '@/features/demo/engine/content/settings-c
 import { DEFAULT_SETTINGS, type DemoSettings } from '@/features/demo/engine/content/settings-values'
 import { APP_NAME } from '@/features/demo/engine/content/app-info'
 import { clock } from '@/features/demo/ui/inputs/clock'
+import { SCHEME_KEY } from '@/features/demo/ui/tokens/palette'
 
 /**
  * The eight stub panes + the two SEAM placeholders (P7.1, decision D6).
@@ -81,13 +82,6 @@ describe('inert controls announce their reason (R-6)', () => {
     return (target as HTMLElement).textContent ?? ''
   }
 
-  it('Dark Mode: the reason resolves and says why it cannot move', () => {
-    renderPane('appearance')
-    const dark = screen.getByRole('switch', { name: 'Dark Mode' })
-    expect(dark).toHaveAttribute('aria-disabled', 'true')
-    expect(describedText(dark)).toMatch(/no light theme/i)
-  })
-
   it('Cloud Sync: the reason resolves and names the impression it is avoiding', () => {
     renderPane('cloud-sync')
     const toggle = screen.getByRole('switch', { name: 'Enable cloud sync' })
@@ -111,17 +105,63 @@ describe('inert controls announce their reason (R-6)', () => {
 })
 
 describe('Appearance pane', () => {
-  it('states Dark Mode’s value but refuses to change it (there is no light theme to switch to)', () => {
-    const { onChange } = renderPane('appearance')
+  /**
+   * SEAM(LM1) — Dark Mode was this pane's one INERT control and is now a live switch.
+   *
+   * These three rows replace the two D2-era tripwires that pinned the absence ("refuses to
+   * change it (there is no light theme to switch to)" and the `aria-describedby` reason row in
+   * the inert-controls block above). Both were correct and both are now exactly wrong: the
+   * palette ships both of the phone's scheme halves and the switch drives them.
+   *
+   * What they pin is the WIRING, not the mechanism — the storage round trip and the reload's
+   * two-arm behaviour live in `tokens/__tests__/palette.test.ts`, next to the code that owns
+   * them. Here: the switch is live, and it asks for the OPPOSITE of the scheme it is showing.
+   */
+  const stubReload = () => {
+    const reload = vi.fn()
+    // jsdom's real `location.reload` is a "Not implemented" navigation that logs through the
+    // virtual console; stubbing keeps the suite quiet AND makes the call assertable.
+    vi.stubGlobal('location', { ...window.location, reload })
+    return reload
+  }
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    window.sessionStorage.removeItem(SCHEME_KEY)
+  })
+
+  it('Dark Mode is a LIVE switch — no aria-disabled, no reason to announce', () => {
+    renderPane('appearance')
+    const dark = screen.getByRole('switch', { name: 'Dark Mode' })
+    expect(dark).not.toHaveAttribute('aria-disabled')
+    expect(dark).not.toHaveAttribute('aria-describedby')
+    expect(dark).toHaveAttribute('tabindex', '0')
+  })
+
+  it('ON → asks for light: persists the choice and restarts the demo on it', () => {
+    const reload = stubReload()
+    const { onChange } = renderPane('appearance', patch({ darkMode: true }))
     const dark = screen.getByRole('switch', { name: 'Dark Mode' })
     expect(dark).toHaveAttribute('aria-checked', 'true')
-    expect(dark).toHaveAttribute('aria-disabled', 'true')
 
     fireEvent.click(dark)
+    expect(window.sessionStorage.getItem(SCHEME_KEY)).toBe('light')
+    expect(reload).toHaveBeenCalledTimes(1)
+    // NOT through the settings patch: the record is bridge state that dies with the tab, while
+    // the scheme has to survive the reload that applies it. Routing this through `onChange` as
+    // well would leave two writers for one fact, and the loser would be whichever the reload
+    // discarded. `DemoExperience` seeds `darkMode` FROM the palette on the way back up.
     expect(onChange).not.toHaveBeenCalled()
-    // Still focusable — the house rule is aria-disabled, never the disabled attribute, so a
-    // keyboard visitor can reach it and read the reason beside it.
-    expect(dark).toHaveAttribute('tabindex', '0')
+  })
+
+  it('OFF → asks for dark: the direction follows the switch, not a constant', () => {
+    const reload = stubReload()
+    renderPane('appearance', patch({ darkMode: false }))
+    const dark = screen.getByRole('switch', { name: 'Dark Mode' })
+    expect(dark).toHaveAttribute('aria-checked', 'false')
+
+    fireEvent.click(dark)
+    expect(window.sessionStorage.getItem(SCHEME_KEY)).toBe('dark')
+    expect(reload).toHaveBeenCalledTimes(1)
   })
 
   it('toggles the import-detail switch for real', () => {

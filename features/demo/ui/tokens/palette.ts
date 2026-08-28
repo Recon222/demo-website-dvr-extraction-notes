@@ -8,10 +8,10 @@
  *
  * ## Both scheme halves ship (decision D2, as amended by the owner 2026-08-27)
  *
- * `palette.light` and `palette.dark` carry ONE key set. The demo renders `dark` — the
- * single consumption site is `colors` below — but nothing hard-codes a dark value that
- * has a light sibling, so opening light mode later is a change to that one line rather
- * than an archaeology exercise. `light` is typed `satisfies Record<PaletteToken, string>`,
+ * `palette.light` and `palette.dark` carry ONE key set. The demo renders whichever the visitor
+ * picked — the single consumption site is `colors` below — and nothing hard-codes a dark value
+ * that has a light sibling, which is what made opening light mode a change to that one binding
+ * rather than an archaeology exercise. `light` is typed `satisfies Record<PaletteToken, string>`,
  * which makes a key present in one half and absent in the other a COMPILE ERROR in both
  * directions (a missing key fails the constraint; an extra one fails the excess-property
  * check). At `dd5551ec` the phone's own two halves have identical 45-leaf key sets.
@@ -169,9 +169,11 @@ export type PaletteToken = keyof typeof dark
 /**
  * The light scheme. Phone `Colors.light` (`Colors.ts:9-126`).
  *
- * The demo has no light surfaces today and light mode stays closed by ABSENCE, not by a
- * guard. These values ship anyway (D2 amended) so that no seam built on top of this module
- * has to invent a light half later.
+ * Live since the Appearance pane's Dark Mode switch became real (SEAM(LM1) below). D2-amended
+ * shipped these values before any demo surface consumed them, precisely so that no seam built on
+ * top of this module had to invent a light half at switch-on time — and none did. The half is
+ * VALUE-correct and surface-rough: `docs/planning/demo-phone-ui-parity/light-mode-fix-plan.md` is
+ * the survey of what the demo's own recipes still get wrong on a white ground.
  */
 const light = {
   primary: '#1e3a8a', // Colors.ts:11 — Blue 900
@@ -243,10 +245,72 @@ export const palette = { light, dark } as const
 export type ColorScheme = keyof typeof palette
 
 /**
+ * SEAM(LM1): where the visitor's scheme choice is kept — the demo's own `sessionStorage`, not
+ * `localStorage`.
+ *
+ * The demo already has exactly one persistence story and it is per-tab: the store snapshot at
+ * `engine/store/persistence.ts:103` (`SNAPSHOT_KEY = 'dvr-demo-state-v7'`, `window.sessionStorage`,
+ * owner decision D2 of v1). A visitor's demo session dies with the tab by design. A theme choice
+ * in `localStorage` would be the ONE thing that outlived it — a second, longer-lived storage story
+ * for a cosmetic preference, and a surprise for anyone who cleared the demo and expected a clean
+ * slate. Same backend, same lifetime, separate key: this is deliberately NOT inside the snapshot,
+ * because `SNAPSHOT_VERSION` is a compile-time guard that must move only when the persisted store
+ * SHAPE changes, and because the choice has to be readable at module-init — long before a store
+ * exists — for the reason the next docblock gives.
+ */
+export const SCHEME_KEY = 'dvr-demo-scheme'
+
+/**
+ * The visitor's choice, read ONCE at module evaluation. Anything unreadable, absent or
+ * unrecognised is DARK.
+ *
+ * ## Why module-init and not React state
+ *
+ * ~130 modules under `ui/` read this palette at MODULE SCOPE — `const tier = GLASS_TIER[scheme]`,
+ * `const colors = palette[scheme]`, and every style fragment composed from them. Those bindings
+ * freeze at import. Making the scheme a context value would mean converting every one of those
+ * frozen fragments into something computed per render: hundreds of sites, in the module that the
+ * whole port's drift guard and every recipe pin are anchored to. That is not a toggle, it is a
+ * second port.
+ *
+ * So the choice is read at init and CHANGING it reloads the page (`setScheme` below). One frame of
+ * white, and every frozen binding is re-evaluated correctly, with no per-site work. The cost is
+ * honest and stated in the Appearance pane: the demo restarts when you flip it. Live swap without
+ * a reload is the context rework above, and it is not worth it for a preference nobody flips twice.
+ *
+ * ## Why the guards
+ *
+ * `typeof window` — `/demo` mounts through `next/dynamic({ ssr: false })` (`app/demo/page.tsx`) and
+ * nothing outside `features/demo/ui/**` imports this module, so today no server evaluates it. That
+ * is a fact about the current import graph, not a guarantee about the next one; a module-scope
+ * `sessionStorage` read is a build-time crash the day someone imports a token into a server
+ * component. One line buys immunity.
+ *
+ * `try/catch` — the `window.sessionStorage` PROPERTY ACCESS itself throws in storage-blocked
+ * contexts (Safari private mode, sandboxed embeds). Same guard, same reason, as
+ * `ui/clear-demo-snapshot.ts:10` and `DemoExperience`'s `sessionStorageOrNull`.
+ *
+ * DARK is the default and not `prefers-color-scheme`: the demo replicates a phone app whose own
+ * default is dark, the light half is a known-rough port (see
+ * `docs/planning/demo-phone-ui-parity/light-mode-fix-plan.md`), and reading the OS would hand half
+ * of all visitors the rough half without asking. It also keeps jsdom deterministic — no stored
+ * value in a fresh test environment means every suite runs dark, which is what every existing pin
+ * was written against.
+ */
+function readScheme(): ColorScheme {
+  if (typeof window === 'undefined') return 'dark'
+  try {
+    return window.sessionStorage.getItem(SCHEME_KEY) === 'light' ? 'light' : 'dark'
+  } catch {
+    return 'dark'
+  }
+}
+
+/**
  * The scheme the demo renders.
  *
- * THIS LINE IS THE SWITCH. Every consumer reads `colors.<phoneName>`, so flipping the demo
- * to light is a one-site change here — that is the contract D2 bought, and the reason no
+ * THIS IS THE SWITCH. Every consumer reads `colors.<phoneName>` / `GLASS_TIER[scheme]`, so the
+ * whole feature follows this one binding — that is the contract D2 bought, and the reason no
  * consumer may reach for `palette.dark` directly.
  *
  * U1.1 gave the switch a NAME rather than leaving it a bare `.dark`, because a SECOND
@@ -255,39 +319,51 @@ export type ColorScheme = keyof typeof palette
  * the flip a two-site change and broken §9 clause 12 on the day it was written; every later
  * seam that ships both halves reads `scheme` for the same reason.
  *
- * `satisfies` and not an annotation: the literal type survives, so `palette[scheme]` is still
- * exactly `typeof dark` and no consumer's inferred type moved by a character.
+ * ANNOTATED `ColorScheme`, no longer `satisfies` a literal. The literal type was chosen so that
+ * `palette[scheme]` stayed exactly `typeof dark` and *"no consumer's inferred type moved by a
+ * character"*. That was the right call while the value was a constant someone edited by hand; it
+ * is a lie now that the value is a runtime read. Keeping the literal would take a cast — an
+ * unchecked claim that stays green while being false, which is precisely what the `activeScheme`
+ * docblock below rejected casts for. So the union is honest and it is load-bearing: `colors` is
+ * now `typeof dark | typeof light` and the four `activeScheme === 'dark'` production gates compile
+ * on their own merits rather than on a widening alias. Measured: tsc exit 0 on both programs.
  */
-export const scheme = 'light' satisfies ColorScheme
+export const scheme: ColorScheme = readScheme()
 export const colors = palette[scheme]
 
 /**
- * SEAM(W4/F84): `scheme` WIDENED to the union, for `=== 'dark'` gates that must survive the flip.
+ * Persist the visitor's choice and restart the demo on it.
  *
- * The problem this closes. `scheme`'s type is the LITERAL `'dark'` (the `satisfies` above, for the
- * reason the docblock gives). TypeScript therefore reads `scheme === 'dark'` as a comparison
- * between `'dark'` and `'dark'` — fine today, and **TS2367 "This comparison appears unintentional
- * because the types have no overlap" the moment the switch is flipped to `'light'`**. Six sites
- * carry that shape and every one of them fails the flip's compile leg (W4/F84): four production
- * (`button-recipe.ts:181,186`, `sheet-chrome.ts:227,242` — the W2/F34 dark-only gates) and two
- * test (`__tests__/palette-contrast.test.ts`, `controls/__tests__/sheet-chrome.test.tsx`).
+ * The reload is the mechanism, not an afterthought — see `readScheme`. It is deliberately NOT
+ * gated on `next !== scheme`: a caller asking for the scheme that is already live gets the same
+ * observable result either way, and a "did it change" branch is one more thing to be wrong.
  *
- * Why widen HERE and not at the export. Annotating `scheme: ColorScheme` would fix all six in one
- * line, and it compiles — measured, tsc exit 0 at `de1cd33`. It is still the wrong line: it makes
- * `colors` the UNION `typeof dark | typeof light`, so every consumer's inferred type widens
- * (`colors.background` becomes `'#002853' | '#ffffff'` rather than `'#002853'`), which is exactly
- * what the docblock above says `satisfies` was chosen to prevent — *"no consumer's inferred type
- * moved by a character"*. W4/F84's own prescription is explicit for the same reason: **"widen the
- * comparison, not the export ... keeping `scheme`'s literal type for the `satisfies typeof`
- * devices that depend on it."** So the widening gets its own name and stays opt-in.
+ * IF THE WRITE FAILS, NOTHING HAPPENS — no reload, so the switch visibly stays where it was. That
+ * is the honest outcome and it is why the reload sits after the write rather than beside it: a
+ * choice that cannot be remembered cannot be applied (the reload would land back on `dark`), and a
+ * control that silently reverts a beat later reads as a bug, while one that does not move reads as
+ * what it is. Storage-blocked contexts are the only path here.
+ */
+export function setScheme(next: ColorScheme): void {
+  try {
+    window.sessionStorage.setItem(SCHEME_KEY, next)
+  } catch {
+    return
+  }
+  window.location.reload()
+}
+
+/**
+ * SEAM(W4/F84): the name the `=== 'dark'` runtime gates read.
  *
- * A typed `const`, NOT a cast. `(scheme as ColorScheme) === 'dark'` silences the same error, but a
- * cast is an unchecked claim: if `scheme` ever stopped being a `ColorScheme` the cast would keep
- * lying, while this binding fails to compile. Same reason `light` is `satisfies
- * Record<PaletteToken, string>` rather than annotated.
- *
- * A gate spelled `activeScheme === 'dark'` reads as *"is the scheme currently dark"* — a runtime
- * question with two possible answers — which is what these four production sites actually mean:
- * each paints a shadow the phone ships under `isDark && {...}` and must NOT paint on white.
+ * It was introduced when `scheme` was a LITERAL type and `scheme === 'dark'` was therefore a
+ * TS2367 ("no overlap") the moment the switch moved to `'light'`. `scheme` is a `ColorScheme`
+ * now, so the alias is no longer load-bearing for the compiler — it is kept because six sites
+ * spell it (four production: `button-recipe.ts:181,186`, `sheet-chrome.ts:227,242`, the W2/F34
+ * dark-only gates; two test: `__tests__/palette-contrast.test.ts`,
+ * `controls/__tests__/sheet-chrome.test.tsx`), and because `activeScheme === 'dark'` reads as
+ * *"is the scheme currently dark"* — a runtime question with two real answers, which is exactly
+ * what those sites mean: each paints a shadow the phone ships under `isDark && {...}` and must NOT
+ * paint on white.
  */
 export const activeScheme: ColorScheme = scheme

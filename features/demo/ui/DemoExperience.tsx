@@ -152,6 +152,7 @@ import { assembleNotesString, buildNotesSectionMeta } from '@/features/demo/engi
 import { buildRetentionView, type RetentionView } from '@/features/demo/engine/logic/retention'
 
 import { importLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
+import { activeScheme } from '@/features/demo/ui/tokens/palette'
 import { clock } from '@/features/demo/ui/inputs/clock'
 import { saveTextFile } from '@/features/demo/ui/inputs/download-file'
 import type { SaveStateKind } from '@/features/demo/engine/logic/save-status'
@@ -703,8 +704,19 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
    * `SNAPSHOT_VERSION`'s three compile-time devices exist to move when the persisted SHAPE
    * genuinely changes, not when a stub gains a field. It resets with the tab, alongside the
    * other ephemeral bridge state above.
+   *
+   * `darkMode` IS THE ONE FIELD THAT IS NOT COSMETIC and is therefore the one field that cannot
+   * come from `DEFAULT_SETTINGS`. Its `true` is a frozen constant; the live scheme is a
+   * `sessionStorage` read (`tokens/palette.ts` SEAM(LM1)) that survives the reload `setScheme`
+   * performs. Seeding from the constant would put the Appearance switch and the master row's
+   * "Dark"/"Light" preview (`settings-values.ts:289`) at odds with the pixels on every load after
+   * a flip to light — the switch reading ON over a white screen. Seeded from the scheme itself,
+   * there is exactly one source of truth and the two agree by construction.
    */
-  const [settings, setSettings] = useState<DemoSettings>(DEFAULT_SETTINGS)
+  const [settings, setSettings] = useState<DemoSettings>(() => ({
+    ...DEFAULT_SETTINGS,
+    darkMode: activeScheme === 'dark',
+  }))
   const patchSettings = useCallback(
     (patch: Partial<DemoSettings>) => setSettings((s) => ({ ...s, ...patch })),
     [],

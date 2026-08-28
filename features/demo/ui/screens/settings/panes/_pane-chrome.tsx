@@ -181,9 +181,10 @@ export type PaneNoteTone = 'info' | 'warning' | 'success'
  * hard-wired to `role="alert"` + an explicit `aria-live`, and it has no `id`. Adopting it here
  * would:
  *
- *   1. break `aria-describedby` on the three inert controls that point at their note (R-6 —
- *      `AppearancePane`'s Dark Mode, `CloudSyncPane`'s switch, `ExportSecurityPane`'s Set
- *      Default Password), because there would be no `id` to point at;
+ *   1. break `aria-describedby` on the inert controls that point at their note (R-6 —
+ *      `CloudSyncPane`'s switch and `ExportSecurityPane`'s Set Default Password; `AppearancePane`'s
+ *      Dark Mode was the third until SEAM(LM1) made it a live switch), because there would be no
+ *      `id` to point at;
  *   2. turn the six STATIC pane notes into live regions that announce on mount (R-34's
  *      explicit finding: "a static live region announces nothing and costs a needless AT
  *      boundary");
