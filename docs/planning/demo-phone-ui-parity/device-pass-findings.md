@@ -365,3 +365,147 @@ Regression run: **FAIL 15/18**. After: **PASS 18/18 intact and in view**, at 3 s
 No guard family was added: after the fix only one file still needed protecting, and a family would have required three exemptions (the two held capture screens plus OCR) to buy it. Two direct pins instead, both mutation-verified.
 
 **Status (DP-9)** — **FIXED @ `48ad825`.**
+
+---
+
+## DP-10 — Completion's middle two buttons are filled; the phone outlines every button but "Complete & Save"
+
+**Seen** — On the phone's Completion screen every button except "Complete & Save" is the OUTLINE variant. The demo fills "Preview Time-Offset Calibration" and "Export Zip"; only "Preview / Export PDF" is outlined.
+
+**Verified at phone source — all four, `app/(form)/completion.tsx`, inside one `<FormActions>` (`:560-607`):**
+
+| # | phone label (verbatim) | phone line | phone `variant` | demo line | demo `variant` | |
+|---|---|---|---|---|---|---|
+| 1 | `Preview/Export PDF` | `:568` | `outline` (`:563`) | `CompletionScreen.tsx:176` | `outline` | ✅ |
+| 2 | `Preview Time Offset Calibration` | `:583` | `outline` (`:575`) | `:181` | **`secondary`** | ❌ |
+| 3 | `Export Zip` | `:596` | `outline` (`:589`) | `:206` | **`secondary`** | ❌ |
+| 4 | `Complete & Save` | `:605` | *no prop* → `primary` (`Button.tsx:41`) | `:215` | default `primary` | ✅ |
+
+All four pass `fullWidth`, none passes `size` (so all are `medium`). The order is the phone's and the demo already matches it (`CompletionScreen.tsx:183-184` cites it).
+
+What the flip actually changes, per `Button.tsx`: `secondary` (`:142-145` box, `:215-217` label) paints `backgroundColor: colors.backgroundSecondary` + `borderColor: colors.border` + `color: colors.text`; `outline` (`:146-153`, `:227-229`) paints `backgroundColor: 'transparent'` + `borderColor: colors.link` + `color: colors.link`. The demo's recipe already transcribes both branches faithfully (`ui/controls/button-recipe.ts:190-206`) — nothing in the recipe needs to change, only the two call sites' argument.
+
+**Root cause (demo) — the prototype had a two-word button vocabulary and U2.2 preserved it mechanically.** `git log -L` on both lines:
+
+- `:181` — `170ee99` ("hardware screens + finale — DVR, Cameras, Export, Notes, Completion, PDF"), the original prototype build.
+- `:206` — `6748dbe` ("drive the real export flow from Completion's Export Zip").
+- Both then `86a8114` (U2.2, "every button consumer adopts the recipe"). Its diff on this file is a pure re-expression:
+  `- ...glassBtnSecondary, fontSize: 14, fontWeight: 600, padding: 13 …` → `+ ...buttonStyle({ variant: 'secondary' })`.
+
+`button-recipe.ts:28-29` names the reason in its own docblock: the two fragments U2.2 replaced were `glassBtnPrimary` / `glassBtnSecondary` — **there was no outline fragment**, so every non-CTA button in the prototype was necessarily "secondary". U2.2 was scoped to adopt the recipe at forty-odd sites, not to re-adjudicate each site's variant against the phone, so the prototype's binary choice was carried verbatim into a five-variant recipe. Button #1 is outline only because U6.4-era work went back to the phone for it specifically (the demo's own comment at `:173-175` cites `completion.tsx:561-569`) — and stopped at the one button it was there for.
+
+**Phone dead code?** — **NO.** All four `<Button>`s at `completion.tsx:561-606` are live and are what the screenshot shows; there is no second Completion screen and no unused variant (`primary` 47 / `outline` 35 / `secondary` 19 / `ghost` 6 / `danger` 2 live `variant=` sites across `app/` + `src/`). Nothing on the phone misled the port — this is demo-side prototype residue.
+
+**Fix** — Two arguments: `CompletionScreen.tsx:181` and `:206`, `variant: 'secondary'` → `variant: 'outline'`. `:206` keeps `disabled: !p.canExport`; `outline`'s disabled arm is D10-correct already (`button-recipe.ts:198-206` — the fill stays transparent, only the border and label take `disabled`/`disabledText`, which is exactly `Button.tsx:151`/`:228`).
+
+No existing pin reddens (swept: `CompletionScreen.test.tsx` / `hardwareFinale.test.tsx` assert labels, `aria-disabled` and clicks, never a background), so the RED is new: assert both buttons render `background: 'transparent'` with `colors.link` on all four border longhands.
+
+**Out of scope, deliberately, and both flagged rather than smuggled in:**
+
+1. **Two copy deltas on the same buttons.** Phone `Preview/Export PDF` (`:568`, no spaces around the slash) vs demo `Preview / Export PDF`; phone `Preview Time Offset Calibration` (`:583`, no hyphen) vs demo `Preview Time-Offset Calibration`. DP-10 is a variant finding and the owner's report is about fills; these are separate one-word decisions (and the demo hyphenates "Time-Offset" consistently elsewhere). Raised for a ruling, not changed.
+2. **The 16 other `variant: 'secondary'` call sites** in `ui/**` share DP-10's exact provenance — every one of them is a `glassBtnSecondary` descendant, and none has been checked against its phone counterpart. Completion is the only one the owner has seen on device. Proposed as a deferral below rather than swept blind.
+3. **The confirmation branch** (`CompletionScreen.tsx:95-97`: "Back to Dashboard" primary, "Return to Cases" / "Review / Export again" secondary) has **no phone counterpart at all** — the phone shows an `Alert` and routes away (`completion.tsx:446`). Those three are demo originals; DP-10's ruling does not reach them.
+
+**Status (DP-10)** — INVESTIGATED
+
+---
+
+## DP-11 — the Export tab has no header; the phone's tab routes all carry `MainHeader`
+
+**Seen** — The phone's Export tab screen has an "Export" header styled like the Cases/Dashboard tab headers. The demo's Export screen has none.
+
+**Confirmed at phone source. There IS a shared tab-header recipe and all four tab routes use it** — `src/components/layout/MainHeader.tsx`, mounted inside `OverlayHeader` by the ROUTE, never by the feature component:
+
+| tab | route | header |
+|---|---|---|
+| Cases | `app/(tabs)/cases.tsx:1120-1125` | `<MainHeader title="Cases" onNewCasePress onSettingsPress />` |
+| Dashboard | `app/(tabs)/home.tsx:372-376` | `<MainHeader title="Dashboard" onSettingsPress />` |
+| **Export** | `app/(tabs)/export.tsx:204` | `<MainHeader title="Export" testID="export-header" />` — **no gear** ("No settings gear: this tab has no settings surface of its own", `:203`) |
+| Map | `app/(tabs)/map.tsx:210` | `<MainHeader title="Case Maps" testID="map-header" />` — no gear (see DP-12) |
+
+`MainHeader`'s recipe (`:105-141`): container unstyled, content row `flexDirection: 'row'`, `alignItems: 'flex-end'`, `paddingHorizontal: Layout.spacing.md` (16), `paddingTop`/`paddingBottom: Layout.spacing.xs` (4), `minHeight: Layout.touchTarget.min` (44); title `flex: 1`, `Typography.fontSize['3xl']` (30) / `fontWeight.bold` (700) / `colors.text`, `numberOfLines={1}`; actions row `gap: Layout.spacing.base` (12) with 44×44 icon boxes. Its docblock `:34-53` rules explicitly that this header takes **no** glass or solid band — *"A glass band with a bottom border would cut the grid in half and read as a stuck toolbar."*
+
+**The demo already carries that recipe — twice, inline, and nowhere else.** `CasesScreen.tsx:81-93` and `DashboardScreen.tsx:61-66` are byte-equivalent copies of it (both comments cite `MainHeader.tsx:105-135` verbatim, both spell `padding: ${spacing.xs}px ${spacing.md}px`, `minHeight: touchTarget.min`, `alignItems: 'flex-end'`, title `fontSize: 30, fontWeight: 700`). There is **no shared `MainHeader` component in the demo** — the port copied the recipe into the two screens that needed it and never extracted it.
+
+**Root cause (demo) — the demo has no tab-ROUTE layer, and the phone keeps these headers in the routes.** `ExportHub.tsx` is a port of the phone's `src/features/case-management/export-hub/components/ExportHub.tsx` (the demo says so at `:16-17`), and that component genuinely has no header: `export.tsx` owns it. The demo's port was component-scoped, so the header — which lives one level up on the phone and one level up only — had nothing to be lifted from. `DemoExperience.tsx:2776-2787` mounts `<ExportHub>` bare, and `ExportHub`'s own `listArea` opens with `padding: '58px 16px 16px'` (`:76`) — status-bar clearance and then straight into cards.
+
+Two smaller notes: the demo's two copies hard-code `color: '#f0f4f8'` where the phone reads `colors.text`, and D15's floating/scroll-materialising-blur half of `OverlayHeader` is a ratified deferral — only its geometry was ported. Neither changes here; the header is static in the demo by that existing ruling.
+
+**Phone dead code?** — **NO.** `MainHeader` has four live call sites (above) and `onSettingsPress` was made optional *for* the Export and Map tabs in `04f07956`. Nothing to delete.
+
+**Fix** — Extract the demo's duplicated recipe into one component and give the third and fourth tab their header.
+
+1. New `features/demo/ui/controls/MainHeader.tsx` — `{ title, onNewCase?, onSettings? }`, the recipe above, with `colors.text` replacing the two `'#f0f4f8'` literals (same value, tokenised). Presentational, props in / callbacks out.
+2. `CasesScreen` / `DashboardScreen` adopt it — **zero visual change**, which is what makes the extraction safe to land in the same commit as the new consumer.
+3. `ExportHub` renders `<MainHeader title="Export" />` as a `flex: 0 0 auto` sibling above `listArea`, with the root taking the 58px status-bar clearance and `listArea` dropping to `padding: '0 16px 16px'`. No gear (phone `export.tsx:203-204`). It goes inside `ExportHub` and not in the bridge because the demo's own convention — set by the two existing copies — is that the tab SCREEN owns its header; the demo has no route layer to put it in, and inventing one for a single header would be a bigger change than the finding.
+
+RED: a new pin that the Export screen renders the title "Export" and no settings control; plus the Cases/Dashboard pins moving to the shared component. `DP-12` then consumes the same component — that ordering is deliberate.
+
+**Status (DP-11)** — INVESTIGATED
+
+---
+
+## DP-12 — the map tab's picker says "Pick a Case"; the phone retitled it "Case Maps" and cut the subtitle
+
+**Seen** — The demo's map-tab case-selection screen reads "Pick a Case" over "Select which case you'd like to view on the map." — stale. The phone reads "Case Maps", styled like the other tab screens.
+
+**Verified, and the provenance is exact.** `git -C <phone> log -S "Pick a Case"` lands on **`04f07956` — "feat(map): give the Map tab the shared floating header" (2026-08-22)**. Its diff deletes, from `src/features/case-management/components/MapPicker.tsx`, precisely the demo's current header:
+
+```
+-      <LinearGradient colors={glassStyle.gradient …} style={[styles.header, …]}>
+-        <Text style={[styles.title, …]}>Pick a Case</Text>
+-        <Text style={[styles.subtitle, …]}>Select which case you&apos;d like to view on the map.</Text>
+-      </LinearGradient>
++      {/* No local header. The tab route owns it now — the shared
++          `MainHeader` inside `OverlayHeader`, same as every other tab. */}
+```
+
+and the commit body states the ruling: *"It now takes the same `MainHeader`-in-`OverlayHeader` every other tab has, titled **"Case Maps"**, **subtitle cut per the owner's ruling**."* The replacement is `app/(tabs)/map.tsx:210` — `<MainHeader title="Case Maps" testID="map-header" />`, inside `<OverlayHeader>`, with no gear and no subtitle. The phone also documents there that the header is on the PICKER branch only: `map.tsx:203-212` wraps the picker in `<Screen … showGrid showScanLine>`, while the `MapHost` branch (`:227-231`) is a bare `<View>` with no header at all.
+
+**Exact phone copy: title `Case Maps`; NO subtitle.**
+
+**Root cause (demo) — a faithful v1 port of the phone's pre-`04f07956` state, and a U5-era note that read the deletion but not the replacement.** The demo's header entered at `30ca5b5` ("map case picker is a full-screen page, not a bottom sheet") — correct against the phone of the day. `features/demo/ui/screens/map/CaseMapPicker.tsx:33-36` then records U5's look at the newer phone, and it is wrong in exactly one step:
+
+> *"A37: the same `header` glass tier every other bar in the demo paints. The phone's own `MapPicker` has no local header left at all (`MapPicker.tsx:190-191` - "the tab route owns it now"), so **there is no counterpart recipe to lift**; the demo keeps its bar and puts it on the tier…"*
+
+It saw that the local header was gone and concluded the phone had no header. The route had it. So the stale copy survived, and the bar was re-tinted onto `glassHeaderBar` (`:37-40`) — hardening the wrong surface. Today the picker's header is a glass band with a bottom hairline at `padding: '54px 18px 14px'`, title 22/700 (`:41`), subtitle 13/`textSecondary` (`:42`) — where the phone's is the bandless 30/700 `MainHeader` row.
+
+**Phone dead code?** — **NO.** `04f07956` cleaned up completely: `MapPicker.tsx` retains no `header` / `title` / `subtitle` styles (swept — only `rowSubtitle:336` and `emptySubtitle:382` remain, both live), and the earlier `CaseSelectionSheet` was deleted outright at `17f067dc`. Nothing to remove phone-side. The stale copy is demo-side and was correct when it landed.
+
+**Fix** — In `CaseMapPicker.tsx`: delete `header` (`:37-40`), `title` (`:41`) and `subtitle` (`:42`), and their two nodes at `:161-164`; render DP-11's `<MainHeader title="Case Maps" />` instead, with the container taking the status-bar clearance. No gear — `MainHeader.tsx:22-26` makes `onSettingsPress` optional for this tab by name. The glass band goes with the styles, per `MainHeader.tsx:44-48`'s own reasoning; that is a phone ruling, not a demo simplification. Everything else in the picker — the All Cases row, the selection border/label constants (`MAP_PICKER_SELECTED_BORDER` / `_TITLE` and their contrast rows), the demo-only Cancel footer — is untouched.
+
+RED already exists and will redden on its own: `map/__tests__/CaseMapPicker.test.tsx:59,61` asserts `getByText('Pick a Case')`. It moves to `Case Maps`, plus a pin that the subtitle string is gone.
+
+**Status (DP-12)** — INVESTIGATED
+
+---
+
+## DP-13 — the scan line runs on every demo screen; the phone runs it on tab screens only
+
+**Owner directive (supersedes the brief's hedge):** on the phone the scanner line runs ONLY on the tab screens; the demo runs it on the wizard screens as well. Direction settled — wizard screens lose it, tab screens keep it.
+
+**The demo's actual behaviour — one unconditional element in the device shell.** `features/demo/ui/PhoneFrame.tsx:112-125`: a 2px full-width bar, `linear-gradient(90deg,transparent,${SCAN_LINE},transparent)` with `boxShadow: 0 0 12px ${SCAN_GLOW}`, `animation: 'scanSweep 7s linear infinite'`, `zIndex: 1`. It is a sibling of the grid (`:111`, `zIndex: 0`) and sits **behind** the screen slot (`:186-203`, `zIndex: 10`), so it shows through wherever a screen paints no ground — which is every wizard screen (e.g. `CompletionScreen.tsx:103` is `{ minHeight: 786, paddingBottom: 40 }`, no background). There is no gate of any kind: `PhoneFrame` takes `children` / `tabBar` / `screenRef` and nothing else.
+
+Two surfaces are correctly unaffected and must stay so: the demo's modals paint an opaque `colors.background` with their own grid overlay (`screens/_shared.tsx:117`, `:56-58`), so the shell's line is already hidden under them — matching the phone's thirteen `<GridBackground showScanLine={false}>` modal mounts; and `SplashScreen.tsx:138`'s `hudScan` line is a different element with a different keyframe and is out of scope.
+
+**The phone's gating mechanism — a prop, defaulted differently at two layers.**
+
+- `src/components/layout/GridBackground.tsx` draws it: prop `showScanLine?: boolean` (`:20`) defaulting **true** (`:34`); the animation effect early-returns on false (`:46`) and cancels on unmount / on the true→false flip (`:64`); the element itself is conditional (`:123-129`); even the rasterisation hints follow it (`:101-102`). Geometry `:145-157` — `position:'absolute', top:0, left:0, right:0, height:2, zIndex:1`, tint `withAlpha(colors.primary, 0.3)` with `shadowOpacity: 0.8` (`:84-87`), 8000ms linear (`:53-56`). Layering matches the demo's exactly: grid `zIndex:0`, line `zIndex:1`, content `zIndex:2` (`:143`, `:151`, `:160`).
+- `src/components/layout/Screen.tsx` passes it through: prop at `:43` (*"Enable animated scan line effect (default true)"*), default true at `:63`, and `:200` `<GridBackground gridOpacity={gridOpacity} showScanLine={showScanLine && isFocused}>`.
+- **`src/components/layout/FormLayout.tsx` is the gate.** `:55` — `showScanLine = false, // Disabled by default for form screens (less distracting)` — passed to `Screen` at `:82`. Every wizard screen renders through `FormLayout` (e.g. `app/(form)/completion.tsx:491`), and **no form screen ever overrides it**.
+- The four tab routes turn it back on explicitly: `app/(tabs)/cases.tsx:1110`, `home.tsx:366`, `export.tsx:195`, `map.tsx:203` — all `showScanLine={true}`. Those four are the ONLY `showScanLine` props anywhere under `app/`.
+
+So the phone's rule is exactly the owner's: **tab screens yes, form screens no, modals no.** The grid is unaffected on all three — `FormLayout` and the modals keep `GridBackground`, they just switch the sweep off. The demo's grid must likewise stay everywhere.
+
+**Phone dead code? — YES, one small piece, and it is this finding's own prop.** `FormLayoutProps.showScanLine` (`FormLayout.tsx:23`) and its parameter default (`:55`) have **zero callers**: swept `app/**` and `src/**`, production and tests — the only `showScanLine` props passed anywhere are the four tab routes' (on `Screen`) and the thirteen direct `<GridBackground showScanLine={false}>` modal mounts; `Screen.scanline.test.tsx` / `GridBackground.scanline.test.tsx` / `GridBackground.raster.test.tsx` exercise `Screen` and `GridBackground`, never `FormLayout`. The **value** is load-bearing (it is what turns the sweep off for every form screen, against `Screen`'s `true` default); the **prop** is not. Suggested deletion: drop `:23` and the `showScanLine = false` parameter, and hard-code `showScanLine={false}` at `:82` — the comment at `:55` moves with it and the behaviour is identical. Owner's call; it is a tidy-up, not a defect.
+
+**Fix (demo)** — Port the phone's prop to the shell that owns the element.
+
+1. `PhoneFrame` takes `showScanLine?: boolean`, **defaulting `true`** — the phone's own `GridBackground` default (`:34`), and it keeps every existing `PhoneFrame` pin green. The line at `:112-125` becomes conditional on it; the grid at `:111` does not move.
+2. `DemoExperience.tsx:2981-2986` passes `showScanLine={tabView !== null && !booting}`. `tabView` is already computed at `:2475` from the registry (`isTabView`, `TAB_VIEWS = ['dashboard','cases','map','export']`, `engine/content/screens.ts:43,60`) and is already the tab bar's own gate on the adjacent line — so the demo's "is this a tab screen" question is answered once, from the registry, and the two chrome elements that depend on it cannot drift apart. `!booting` mirrors the tab bar's existing condition and matches the phone's splash, which mounts no `Screen` at all.
+
+That is the whole change: one prop, one conditional, one expression already in hand. No screen component moves, `demo.css`'s D9-frozen `scanSweep` keyframe is untouched, and the map picker keeps the line because `map` is a tab view — which is what `map.tsx:203` does too.
+
+RED (three, all new): `PhoneFrame` with `showScanLine={false}` renders no `scanSweep` element (the existing `scanLine()` helper at `PhoneFrame.test.tsx:22-28` finds it by animation name and already `expect`s truthiness — the negative is its mirror); and, driving `DemoExperience` with an injected store, the element is absent on a wizard view and present on a tab view.
+
+**Status (DP-13)** — INVESTIGATED
