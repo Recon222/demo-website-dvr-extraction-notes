@@ -52,9 +52,17 @@ describe('PhoneFrame', () => {
     // on a severed derivation, which is the failure that matters here.
     expect(line.style.backgroundImage).toContain(withAlpha(colors.primary, 0.3))
     expect(line.style.backgroundImage).not.toContain('205, 196')
-    // MEASURED on this repo's jsdom (29.1.1): `box-shadow` keeps an inline hex verbatim — it is
-    // `background-color` that gets rewritten to `rgb(...)`. So the glow compares as written.
-    expect(line.style.boxShadow).toBe(`0 0 12px ${colors.primary}`)
+    // The glow carries the phone's `shadowOpacity: 0.8` (`GridBackground.tsx:145-155`) IN THE
+    // COLOUR, because CSS has one colour where RN has a colour and an opacity. Shipped at an
+    // implicit 1.0 until the W4 capture round flagged it (`_captures/w4/DIFF.md`) — invisible
+    // today (the composite measured DIMMER, 81.9 -> 64.8) and wrong by construction, which is
+    // the pair of facts that makes a pin the right answer rather than a re-measure.
+    //
+    // The 12px BLUR is not `shadowRadius: 10` re-expressed and must not be "corrected" to it:
+    // RN's five shadow props do not carry to CSS at a fixed ratio (this repo's own ruling, at
+    // `glass-tokens.ts`'s `glassWell` docblock), 12px is the demo's lifted value, and the plan's
+    // U8.2 row spells `0 0 12px`. Only the colour is derived.
+    expect(line.style.boxShadow).toBe(`0 0 12px ${withAlpha(colors.primary, 0.8)}`)
   })
 
   // A10/D9. The grid is the frame's other ambient layer and its alpha moved with `gridSubtle`;

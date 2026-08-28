@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useEffect, useRef } from 'react'
+import { useReducedMotion } from 'motion/react'
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { assertNever } from '@/features/demo/engine/logic/assert-never'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
@@ -103,6 +104,9 @@ export function ExportActionSheet({
   disabled = false,
 }: ExportActionSheetProps) {
   const listRef = useRef<HTMLDivElement | null>(null)
+  // W4/F86. `GlassBottomSheet` — this sheet's sibling on the same `sheetUp` keyframe — already
+  // gates it; this file is a hand-rolled copy that missed the treatment.
+  const reduce = useReducedMotion()
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -175,7 +179,7 @@ export function ExportActionSheet({
           boxShadow: SHEET_SHADOW,
           overflow: 'hidden',
           pointerEvents: 'auto',
-          animation: 'sheetUp 0.28s ease',
+          animation: reduce ? undefined : 'sheetUp 0.28s ease',
         }}
       >
         <div style={{ padding: '14px 18px', borderBottom: GLASS.border }}>
