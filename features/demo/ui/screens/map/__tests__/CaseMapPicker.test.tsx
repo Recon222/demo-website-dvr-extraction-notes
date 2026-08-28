@@ -8,7 +8,41 @@ import { colors, scheme } from '@/features/demo/ui/tokens/palette'
 /** jsdom rewrites an inline hex to `rgb(r, g, b)` and re-spaces `rgba(...)` on read-back. */
 const hexToJsdomRgb = (hex: string) =>
   `rgb(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)})`
-const respace = (value: string) => value.replace(/,(?=\S)/g, ', ')
+/**
+ * ...and it collapses a fully opaque `rgba(r,g,b,1)` to `rgb(r,g,b)` (W4/F85), which no dark tier
+ * stop ever exercised — every one carries a fractional alpha, while light's `nestedCard` stops
+ * are `rgba(233,238,245,1)` / `rgba(223,231,239,1)` (`glass-tiers.ts`, phone `Colors.ts:302`).
+ * Under the scheme flip the gradient pin below reddened on that NORMALISATION alone.
+ *
+ * So the expectation is round-tripped through jsdom instead of re-spelled by hand: write the
+ * token into the same declaration the component writes, read back the same longhand the test
+ * reads. Exact by construction — every rewrite jsdom performs lands on both sides, including
+ * ones nobody has catalogued — and it cannot drift when jsdom changes.
+ *
+ * Both helpers are EXISTING repo idiom, not new: `jsdomBackgroundImage` is `normGradient`
+ * (`ui/__tests__/glass-card-recipe.test.tsx:72-77`) verbatim, shorthand hop included —
+ * `glassCardNested` spells `background` and React writes that, but jsdom parks a gradient in
+ * `backgroundImage`, so the probe writes the shorthand and reads the longhand exactly as the
+ * render path does. `jsdomColor` is `export-selection-marks.test.tsx:12`.
+ *
+ * What these pins do NOT cover, deliberately: the recipe -> tier hop. Both sides of the gradient
+ * assertion read `glassCardNested`, so a change to the fragment's own composition moves them
+ * together (measured: mutating `glass-tokens.ts:280`'s second stop SURVIVES here). That contract
+ * is owned next door — `glass-card-recipe.test.tsx:366` composes `NESTED_GRADIENT` from
+ * `tier.nestedCard` and never from the fragment, and the same mutation KILLS there. This file's
+ * job is "the case row paints the nested recipe"; that file's is "the nested recipe is the tier".
+ */
+function jsdomColor(value: string): string {
+  const probe = document.createElement('div')
+  probe.style.color = value
+  return probe.style.color
+}
+
+function jsdomBackgroundImage(value: string): string {
+  const probe = document.createElement('div')
+  probe.style.background = value
+  return probe.style.backgroundImage
+}
 
 const cases = [
   { id: 'c1', caseNumber: 'PR25-1', displayName: 'Case One', locationCountLabel: '2 locations', status: 'draft' as const },
@@ -80,7 +114,7 @@ describe('CaseMapPicker (full-screen)', () => {
       expect(selected.style[side], `selected ${side}`).toBe(primary)
     }
     // The unselected row's four sides are the nested tier's, and its left is not special.
-    const glassSide = respace(GLASS_TIER[scheme].nestedCard.border)
+    const glassSide = jsdomColor(GLASS_TIER[scheme].nestedCard.border)
     expect(unselected.style.borderLeftColor).toBe(glassSide)
     expect(unselected.style.borderRightColor).toBe(glassSide)
     // No `borderLeft` shorthand survives anywhere in the declaration.
@@ -88,7 +122,7 @@ describe('CaseMapPicker (full-screen)', () => {
     expect(unselected.getAttribute('style')).not.toMatch(/border-left:/)
     // Selection ADDS: the fill is the same on both rows (D1(a)'s surviving principle).
     expect(selected.style.backgroundImage).toBe(unselected.style.backgroundImage)
-    expect(selected.style.backgroundImage).toBe(respace(glassCardNested.background))
+    expect(selected.style.backgroundImage).toBe(jsdomBackgroundImage(glassCardNested.background))
   })
 
   // Matrix row 18: "`accent = '#4ba3d4'` (`:28`) is `MAP_GLASS_COLORS.primaryLight` un-imported."

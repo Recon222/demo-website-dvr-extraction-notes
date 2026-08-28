@@ -22,6 +22,8 @@ import type { AppView } from '@/features/demo/engine/store/create-store'
 import type { ModalId } from '@/features/demo/engine/types'
 import { runImport as runTextImport, runPdfImport, type ImportRunResult } from '@/features/demo/ui/import/run-import'
 import { importLogBus, type ImportLogLevel } from '@/features/demo/engine/logic/import-log'
+import { colors } from '@/features/demo/ui/tokens/palette'
+import { withAlpha } from '@/features/demo/ui/tokens/scale'
 
 const runText = vi.mocked(runTextImport)
 const runPdf = vi.mocked(runPdfImport)
@@ -772,8 +774,11 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     // The dwell CTA is the amber partial — counts in the VISIBLE accname (R-3), never green.
     const cta = await screen.findByRole('button', { name: /Batch partially failed: 1 of 2, 1 needs attention/ })
     expect(cta).toHaveTextContent('Review import →')
-    expect(cta.style.border).toContain('rgba(255, 217, 61, 0.36)') // amber, not success green
-    expect(cta.style.border).not.toContain('rgba(16, 209, 119')
+    // W4/F85 — CLASS 1: both hexes were hand-spelled from the dark palette. The CTA paints
+    // `withAlpha(colors.warning, 0.36)` (`ImportTerminalProgress.tsx:394`, phone `:284`), so read
+    // the tone off the token; the claim is amber-not-green, which holds in either scheme.
+    expect(cta.style.border).toContain(withAlpha(colors.warning, 0.36)) // amber, not success green
+    expect(cta.style.border).not.toContain(withAlpha(colors.success, 0.36))
 
     fireEvent.click(cta)
     expect(await screen.findByText(/Imported 1 of 2 requests/)).toBeInTheDocument()
