@@ -258,7 +258,7 @@ export type ColorScheme = keyof typeof palette
  * `satisfies` and not an annotation: the literal type survives, so `palette[scheme]` is still
  * exactly `typeof dark` and no consumer's inferred type moved by a character.
  */
-export const scheme = 'dark' satisfies ColorScheme
+export const scheme = 'light' satisfies ColorScheme
 export const colors = palette[scheme]
 
 /**

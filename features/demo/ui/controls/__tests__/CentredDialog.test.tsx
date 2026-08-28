@@ -15,7 +15,7 @@ import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { DeleteConfirmationModal } from '@/features/demo/ui/screens/DeleteConfirmationModal'
 import { ExportModal } from '@/features/demo/ui/screens/ExportModal'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
-import { colors, scheme } from '@/features/demo/ui/tokens/palette'
+import { activeScheme, colors, scheme } from '@/features/demo/ui/tokens/palette'
 import { radius, spacing } from '@/features/demo/ui/tokens/scale'
 
 /**
@@ -554,7 +554,11 @@ describe('the dialog backdrop — F43, colors.overlay and not colors.scrim', () 
     // `overlay` in light, and not in dark"), so under a light flip no rendered-value pin can tell
     // the two tokens apart and this cell reds. That is the pin reporting a real loss of
     // discriminating power, not a defect: F43's finding only exists where the values differ.
-    expect(dialogScrim.background).not.toBe(colors.scrim)
+    // GATED to the dark half on the owner's light flip — manifest O1 (`ui-parity/w4/
+    // lightflip-objector-manifest.md` §1), the row-49 precedent (`palette-contrast.test.ts:1063`).
+    if (activeScheme === 'dark') {
+      expect(dialogScrim.background).not.toBe(colors.scrim)
+    }
     // `zIndex` stays the shell's — D14 froze the numbers per caller.
     expect(dialogScrim).not.toHaveProperty('zIndex')
   })
