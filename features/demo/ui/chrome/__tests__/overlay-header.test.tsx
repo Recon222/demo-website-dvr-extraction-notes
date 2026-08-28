@@ -28,8 +28,16 @@ const tier = GLASS_TIER[scheme]
  * unspaced spelling reds on formatting rather than on value (mutation-testing SKILL, project
  * hazards; §4.7). Strip whitespace on BOTH sides, exactly as `glass-tokens.test.ts`'s `norm`
  * does and for the same reason.
+ *
+ * W4/F85 — and jsdom ALSO collapses a fully opaque `rgba(r,g,b,1)` back to `rgb(r,g,b)` on
+ * read-back, which no dark value in this file ever exercised: every dark tier stop carries a
+ * fractional alpha. Light's `card` stops are `rgba(248,250,252,1)` (`glass-tiers.ts`, phone
+ * `Colors.ts:277`), so under the scheme flip this pin reddened on jsdom's NORMALISATION, not on
+ * a value. Collapsing alpha-1 on both sides is the same trick as the whitespace strip and keeps
+ * every channel compared — `rgba(0,0,0,0.1)` and friends do not match, the comma is literal.
  */
-const norm = (s: string): string => s.toLowerCase().replace(/\s+/g, '')
+const norm = (s: string): string =>
+  s.toLowerCase().replace(/\s+/g, '').replace(/rgba\(([^)]+),1\)/g, 'rgb($1)')
 
 /** jsdom also rewrites `#rrggbb` to `rgb(r, g, b)` on read-back. Compare through the same
  *  normalisation the DOM applies rather than by hex. */

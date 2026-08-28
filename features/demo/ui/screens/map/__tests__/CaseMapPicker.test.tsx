@@ -8,7 +8,15 @@ import { colors, scheme } from '@/features/demo/ui/tokens/palette'
 /** jsdom rewrites an inline hex to `rgb(r, g, b)` and re-spaces `rgba(...)` on read-back. */
 const hexToJsdomRgb = (hex: string) =>
   `rgb(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)})`
-const respace = (value: string) => value.replace(/,(?=\S)/g, ', ')
+/**
+ * ...and it collapses a fully opaque `rgba(r,g,b,1)` back to `rgb(r,g,b)` (W4/F85). No dark tier
+ * stop is opaque, so this half never fired until the scheme flip: light's `nestedCard` gradient
+ * is `rgba(233,238,245,1)` / `rgba(223,231,239,1)` (`glass-tiers.ts`, phone `Colors.ts:302`),
+ * and the pin below reddened on jsdom's NORMALISATION rather than on any value. Collapsed BEFORE
+ * the re-space, on the token's own unspaced spelling; every channel is still compared.
+ */
+const respace = (value: string) =>
+  value.replace(/rgba\(([^)]+),1\)/g, 'rgb($1)').replace(/,(?=\S)/g, ', ')
 
 const cases = [
   { id: 'c1', caseNumber: 'PR25-1', displayName: 'Case One', locationCountLabel: '2 locations', status: 'draft' as const },
