@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { CSSProperties, ReactNode, RefObject } from 'react'
-import { usePhoneScale } from '@/features/demo/ui/usePhoneScale'
+import { PHONE_FRAME_H, usePhoneScale } from '@/features/demo/ui/usePhoneScale'
 import { PhoneOverlayContext } from '@/features/demo/ui/phone-overlay'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
@@ -70,7 +70,11 @@ export function PhoneFrame({ children, tabBar, screenRef }: PhoneFrameProps) {
   const [overlay, setOverlay] = useState<HTMLDivElement | null>(null)
   return (
     <PhoneOverlayContext.Provider value={overlay}>
-    <div style={{ display: 'flex', justifyContent: 'center', flex: '0 0 auto' }}>
+    {/* `height` compensates the transform below. A CSS transform scales the PAINT and leaves the
+        LAYOUT box at its unscaled size, so without this the frame still occupies 812px of column
+        however small it is drawn — which made the sticky column's box taller than a short
+        viewport, and the phone could not stay fully in view at the foot of the page (DP-8). */}
+    <div style={{ display: 'flex', justifyContent: 'center', flex: '0 0 auto', height: PHONE_FRAME_H * scale }}>
       <div
         data-phone="frame"
         style={{

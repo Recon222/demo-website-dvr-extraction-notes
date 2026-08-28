@@ -225,3 +225,80 @@ Watch: the ruling also removes `screens/_shared.tsx` from the retired-navy famil
 Two notes before this is scheduled. It is an **engine + store change, not a UI one**, so it wants its own package and a widened-union sweep rather than riding a device-pass fix. And the demo's New Case section is currently hand-rolled fields (`NewCaseModal.tsx:259-280`) rather than `IncidentLocationFields`, so "one form, two modes" (matrix row 23) is only half-true today — routing New Case through `IncidentLocationFields` first would make the drop-in land in one place instead of two.
 
 **Status (DP-7)** — INVESTIGATED
+
+---
+
+## DP-6 — Time picker has no barrel definition
+
+**Seen** — The phone's spinner shows a recessed cylinder per column (vertical shading, edge falloff, per-column depth); the demo renders flat numbers (owner's image 2).
+
+**Owner ruling embedded:** the light pill behind the `h`/`m`/`s` labels is **NOT** to be ported. It is `TimePicker.styles.ts:202`, `backgroundColor: withAlpha(colors.background, 0.6)` → `rgba(0,40,83,0.6)` — and it is *already* in the demo at `TimeWheel.tsx:134`, byte-exact. **`TimeWheel.tsx:124-141` must not be touched by this work.**
+
+**Root cause (demo)** — `features/demo/ui/inputs/TimeWheel.tsx` paints the drum but nothing per column. `WheelColumn` (`:79-143`) is a bare wrapper (`:80`, no paint at all) around a scroller (`:85-92`); items (`:96-113`) carry no tint, no divider, no text-shadow. Both the selection band (`:178-187`) and the fade (`:189-196`) are **single container-wide overlays** spanning all three columns *and* the 6px gutters — which is precisely why the demo reads as one slab where the phone reads as three cylinders.
+
+**The phone's recipe, layer by layer** (all dark-scheme literals):
+
+1. **Well** — `TimePicker.styles.ts:227-258`: radius 12, `paddingHorizontal: 10`, `gap: 6`, `overflow: hidden`, border `rgba(0,14,30,0.75)` with top+bottom `rgba(0,12,26,0.55)`, drop shadow `0 8px 32px rgba(0,0,0,0.5)` (`:243-249`). Ground is **flat `#001e3f`** = `flattenOver(recessed.gradient[0], sheet.gradient[0])` (`:62-65`).
+2. **Per-column barrel** — one gradient per column, `90 × 225`, rendered *inside* each column View (`DurationScroll.js:391-400`; `styles.js:98-103` sizes it `100%/100%`). **13 stops**, `getGradientOverlayProps` at `TimePicker.styles.ts:332-349`, every stop `withAlpha('#001e3f', a)`, pure vertical (no `start`/`end` passed → expo default `0.5,0 → 0.5,1`):
+   `0%` 1.0 · `8%` 0.96 · `18%` 0.82 · `24%` 0.65 · `34%` 0.28 · `40%` 0.10 · `50%` 0 · `60%` 0.10 · `66%` 0.28 · `76%` 0.65 · `82%` 0.82 · `92%` 0.96 · `100%` 1.0.
+   The gutters are **not** covered — that gap is a large part of the three-cylinder read.
+3. **Column divider + row wash** — `TimePicker.styles.ts:266-275`: every item container is `width 90`, `height 45`, `backgroundColor: rgba(43,140,193,0.08)`, `borderRightWidth: 1` in `rgba(43,140,193,0.12)`. Stacked over every row, that right border becomes a continuous 1px cyan edge down each column, itself faded by the gradient above.
+4. **Selection band** — *no element exists*. It is emergent: the 0.08 cyan wash on **all** rows, revealed where the gradient goes clear (0.40–0.60 ≈ one 45px row) and stepped at 0.34/0.66. Documented `TimePicker.styles.ts:283-306`.
+5. **Per-item ramp** — **static, nothing computed** (`PickerItem.js:30-42`; no `renderItem` override). One text colour for every row, `#f0f4f8`, 24/600, plus `text-shadow: 0 1.5px 3px rgba(0,0,0,0.6)` (`:173-177`) — the etched read the demo lacks entirely.
+6. **No mask** — `MaskedView` is never passed, so `DurationScroll.js:396-400` takes the non-masked branch: the gradient paints *over* the content, `pointerEvents: 'none'`.
+
+**Phone dead code?** — **NO.** Every layer above is live and is what the screenshot shows.
+
+**Raw material already in the demo.** `glassWell` (`glass-tokens.ts:337-347`) is the `recessed` tier, byte-identical to the phone's `Colors.ts:433-438`, and already on the drum root (`TimeWheel.tsx:169`). Three enforced constraints on any port: **longhands only** after a `glassWell` spread (`glass-tokens.ts:307-318`; `border`/`borderColor` silently erase both lips, negative controls at `glass-well-recipe.test.tsx:136-149`); **compose, never replace, `boxShadow`**; and the drum's drop shadow is deliberately *not* in the token (`glass-tokens.ts:330-333`) so it belongs at the call site. `glass-well-recipe.test.tsx:219-221` also holds the well to a CIE76 `3 < dE < 12` band against its panel.
+
+**Fix** — Move the two container-wide overlays onto each column and add the two missing per-column layers. Concretely, in `WheelColumn`: give the wrapper `position: relative` paint with (a) the 13-stop `linear-gradient(180deg, …)` above, as a `pointer-events: none` overlay sized to the column, (b) a 1px right border in `rgba(43,140,193,0.12)`, and (c) the 0.08 cyan wash on the item rows rather than one 44px strip; add `text-shadow: 0 1.5px 3px rgba(0,0,0,0.6)` to the item text. Then delete the drum-wide band (`:178-187`) and fade (`:189-196`), whose jobs the per-column gradient now does.
+
+**Do NOT transcribe the phone's flat `#001e3f` ground.** It exists only because the RN library takes a single colour string (`TimePicker.styles.ts:36-43` says so outright) and its fade must end on that exact colour or it seams. CSS has no such constraint: keep `glassWell`'s two-stop gradient on the root and give each column's barrel outer stops of `flattenOver(recessed.gradient[0], sheetTop)` = `rgb(0,30,63)` at the top and `flattenOver(recessed.gradient[1], sheetBottom)` = `rgb(0,36,74)` at the bottom. That lands each fade on the well's own local colour and keeps the well's gradient visible in the gutters — closer to the phone's *intent* than copying its workaround.
+
+**Two live defects to fix in the same pass** (both in the current fade, `TimeWheel.tsx:38-39`, `:189-196`): its mid stops are hard-coded `rgba(15,32,53,0)` — `#0f2035`, a fourth navy belonging to no token here and one the phone deleted; and `FADE_TOP`/`FADE_BOTTOM` flatten over `T.raised` (`#0e3965`) while `PickerSheet` now mounts `GlassBottomSheet`, whose upper half is `rgb(0,40,83)` (`sheet-chrome.ts:120`). `TimeWheel.tsx:31-35` already carries this as `SEAM(U4.1)` and says the fix is two lines. Over the correct ground the stops become `rgb(0,30,63)` / `rgb(0,36,74)` — the top one *exactly* the phone's `modalBg`. Existing pins at `TimeWheel.test.tsx:90-95,112-117` will redden and must move with it.
+
+**Geometry gap, not proposed for change:** demo rows are 44 and columns 64 (`TimeWheel.tsx:12`, `:86`); the phone's are 45 and 90.
+
+**`RENDER_THIN` — bears, but the answer is "leave it".** The warn is emitted by `.ds-sync/package-validate.mjs:706` in the MAIN checkout (not this worktree, which has `.design-sync/`), and `:558` shows it is `variantsIdentical` — an **`outerHTML` string compare**, not a screenshot diff, so `NOTES.md:242-246` and the U8.4 report's D-4 describe the mechanism loosely while reaching the right conclusion. `TimeWheel.tsx:64`'s `el.scrollTop = value * ROW` is a DOM property that never serialises, so both stories are byte-identical markup. **Every layer this port adds is value-independent and serialises identically, so the warn keeps firing — correctly.** It clears only if `value` reaches the markup (a per-row selected style or a printed readout), which is D-4's stated trigger and exactly what the phone deliberately does not do. Do not chase it; doing so would re-introduce the second text colour `TimeWheel.tsx:107-112` deleted.
+
+**Status (DP-6)** — INVESTIGATED
+
+---
+
+## DP-8 — Phone frame leaves the viewport at the foot of a short page — **NON-PARITY (demo-site UX)**
+
+**Not a phone-parity row.** A demo-site layout defect, on the owner's direct instruction.
+
+**Seen** — Owner, verbatim: *"the phone needs to be independent when it comes to movement. It should never move above or below the fold and have the user have to scroll to get it back in full frame."*
+
+**Root cause — and it is NOT what the symptom suggests.** The phone column is *already* `position: sticky, top: 0` (`DemoExperience.tsx:2980`), and sticky was **already working**: measured in Chromium, the frame held at `top ≈ 41` across every scroll depth on a 900px viewport. My first hypothesis — that the root layout's `overflow-hidden` wrapper (`app/layout.tsx:76`) was defeating sticky — was **refuted by measurement**.
+
+The real cause is that **a CSS transform scales the paint and leaves the layout box unscaled.** `PhoneFrame` fits the device with `transform: scale(scale)` (`PhoneFrame.tsx:88`), so however small the phone is *drawn*, it still occupied **812px** of column height. `usePhoneScale` then compounded it by reserving only **28px** (`usePhoneScale.ts`, old default) where the sticky column actually spends **56** on padding (28 top + 28 bottom, `DemoExperience.tsx:2980`). On a 700px viewport the sticky box came out ≈868px — taller than the viewport — so sticky pinned at `top: 0` with its bottom past the fold, and at the end of its parent's range it was pushed up out of view.
+
+Measured before, Chromium, `/demo`:
+
+| viewport | scrollY | frame top | visible |
+|---|---|---|---|
+| 1440×900 | 0 / 369 / 738 | 41 | 100% |
+| 1440×700 | 0 / 469 | 39 | 100% |
+| 1440×700 | **938 (page foot)** | **−129** | **80% — CLIPPED** |
+
+**Fix** — two edits, both naming the same number:
+- `PhoneFrame.tsx:77` — the frame wrapper takes `height: PHONE_FRAME_H * scale`, so the layout box tracks the paint.
+- `usePhoneScale.ts` — the reserve becomes `PHONE_COLUMN_PADDING_Y = 56`, the sticky column's real padding, exported so the two cannot drift.
+
+No change to `demo.css` (D9 untouched), no change to the sticky declaration itself, and no change to the root layout.
+
+**Verification — Chromium, `/demo` on a dev server at :3009**, 3 scroll depths (top / mid / page-foot) × 3 viewport heights:
+
+| viewport | scrollY | frame top | visible |
+|---|---|---|---|
+| 1440×900 | 0 / 369 / 738 | 41 | 100% |
+| 1440×700 | 0 / 469 / 938 | 38 | 100% |
+| 1280×560 | 0 / 539 / 1078 | 36 | 100% |
+
+**PASS — fully in view at all 9 measurements.** Reproduce with `_dp8/probe.mjs` (exit 0 = pass, 1 = fail); screenshots are written beside it and are deliberately not committed — the numbers above are the evidence. Dev server killed afterwards; `netstat` LISTEN on :3009 confirmed empty.
+
+**Honesty about the pins:** **jsdom computes no layout, so it cannot see the scroll behaviour at all** — the Chromium table above is the only evidence for the *behaviour*. What the two new jsdom pins in `PhoneFrame.test.tsx` hold is the *mechanism*: the wrapper's height tracks the scale (mutation: drop the compensation → KILLED, `expected '' to be '544px'`), and the reserve still equals the column's padding, read out of `DemoExperience.tsx` (mutation: bottom padding 28→40 → KILLED, `expected 68 to be 56`). Two existing pins reddened on the reserve change and were updated with the new arithmetic: `expected 'scale(0.6699…)' to contain 'scale(0.70'`.
+
+**Status (DP-8)** — **FIXED @ `f8c0ac3`.**
