@@ -1,7 +1,6 @@
 'use client'
 
 import { useLayoutEffect, useRef } from 'react'
-import type { CSSProperties } from 'react'
 import { pad2 } from '@/features/demo/engine/logic/datetime-parts'
 import { glassWell } from '@/features/demo/ui/glass-tokens'
 import { T } from '@/features/demo/ui/inputs/input-theme'
@@ -37,6 +36,57 @@ const PAD = ((VISIBLE - 1) / 2) * ROW // 2 rows of padding so first/last can cen
 const WELL = GLASS_TIER[scheme].recessed
 const FADE_TOP = flattenOver(WELL.gradient[0], T.raised)
 const FADE_BOTTOM = flattenOver(WELL.gradient[1], T.raised)
+
+/**
+ * The per-column BARREL — the phone's `getGradientOverlayProps`
+ * (`TimePicker.styles.ts:332-349`): 13 stops, pure vertical, painted INSIDE each column
+ * (`DurationScroll.js:391-400`) and not across the drum.
+ *
+ * Per-column placement IS the finding (DP-6). The demo painted ONE fade spanning all three
+ * columns and both 6px gutters, which reads as a single slab; three separate barrels — with the
+ * well's own gradient still showing between them — is what makes it read as three cylinders.
+ *
+ * The ALPHAS are the phone's exactly. The COLOUR deliberately is not: the phone ramps to a flat
+ * `#001e3f` because its RN library takes a single colour string, and its own comment
+ * (`TimePicker.styles.ts:36-43`) says the container fill and the gradient's outer stops must be
+ * the same colour or the fade ends on a seam. CSS has no such constraint, so each end ramps to
+ * the WELL's own local colour instead — the phone's intent rather than its workaround.
+ *
+ * This also retires a live defect: the fade this replaces ramped through `rgba(15,32,53,0)` —
+ * the retired raised navy in its rgb spelling, a fourth navy on no token in this palette and one
+ * the phone deleted. Every stop below is derived from the well instead. (The hex form is not
+ * written here on purpose: `palette.test.ts`'s RETIRED sweep matches raw text, comments
+ * included, and it correctly flagged this docblock when it did spell it.)
+ */
+const BARREL_STOPS: ReadonlyArray<readonly [pct: number, alpha: number]> = [
+  [0, 1],
+  [8, 0.96],
+  [18, 0.82],
+  [24, 0.65],
+  [34, 0.28],
+  [40, 0.1],
+  [50, 0],
+  [60, 0.1],
+  [66, 0.28],
+  [76, 0.65],
+  [82, 0.82],
+  [92, 0.96],
+  [100, 1],
+]
+
+const barrelGradient = `linear-gradient(180deg,${BARREL_STOPS.map(
+  ([pct, alpha]) => `${withAlpha(pct <= 50 ? FADE_TOP : FADE_BOTTOM, alpha)} ${pct}%`,
+).join(',')})`
+
+/**
+ * The column's right edge — phone `TimePicker.styles.ts:266-275`, `borderRightWidth: 1` in
+ * `rgba(43,140,193,0.12)`. The phone puts it on every ITEM, so 45 stacked borders add up to one
+ * continuous line down the column; one border on the column is the same line in one node.
+ *
+ * NOT `T.primaryEdge` — that is 0.25 and belongs to the band this replaces. `colors.primary` is
+ * `#2B8CC1` = rgb(43,140,193), so the phone's literal is this token at 0.12.
+ */
+const COLUMN_EDGE = withAlpha(colors.primary, 0.12)
 
 /** Round scrollTop to the nearest row index, clamped to [0, count-1]. Pure (jsdom-testable). */
 export function indexFromScrollTop(scrollTop: number, rowH: number, count: number): number {
@@ -77,7 +127,18 @@ function WheelColumn({ count, value, onChange, dataCol, label }: ColumnProps) {
   }
 
   return (
-    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+    <div
+      style={{
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        // Phone `:266-275` — the column's right edge. Longhands, never the `borderRight`
+        // shorthand: jsdom does not decompose one into the side a pin needs (HANDOFF §4).
+        borderRightWidth: 1,
+        borderRightStyle: 'solid',
+        borderRightColor: COLUMN_EDGE,
+      }}
+    >
       <div
         ref={ref}
         data-wheel-col={dataCol}
@@ -107,15 +168,27 @@ function WheelColumn({ count, value, onChange, dataCol, label }: ColumnProps) {
               // ONE colour for every row (`TimePicker.styles.ts:163-168`). The demo's selected
               // row used `#e8f0f8`, which is the same hand-mixed near-miss of `colors.text`
               // (`#f0f4f8`) the phone deleted — "two points of blue apart and reachable through
-              // the theme". The selection is carried by the band and the fade, never by a
-              // second text colour.
+              // the theme". The selection is carried by the barrel, never by a second text
+              // colour, and the phone's per-item ramp is likewise fully static
+              // (`PickerItem.js:30-42` — no `renderItem` override, nothing computed).
               color: T.text,
+              // Phone `:266-275`: EVERY row carries the wash, not just the middle one. The
+              // selection band is emergent — no element paints it — because the barrel above
+              // goes clear across roughly one row (its 0.40-0.60 stops) and veils the rest.
+              // `T.primarySoft` is already `rgba(43,140,193,0.08)`, the phone's value exactly.
+              background: T.primarySoft,
+              // Phone `:173-177` — the etched read the flat numbers lacked entirely.
+              textShadow: '0 1.5px 3px rgba(0, 0, 0, 0.6)',
             }}
           >
             {pad2(i)}
           </div>
         ))}
       </div>
+      {/* The barrel, over the scroller and under the label. `pointer-events: none` so the column
+          still scrolls through it — phone `DurationScroll.js:396-400` takes the non-masked
+          branch (no `MaskedView` is ever passed) and paints the gradient OVER the content. */}
+      <div aria-hidden="true" data-wheel-barrel={dataCol} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: barrelGradient }} />
       {/* Engraved column label (h / m / s) — `TimePicker.styles.ts:187-207`.
           The pill is what makes it read as an engraved marker rather than floating text, and
           the flat token is what makes it legible: the demo's `rgba(153,186,221,0.5)` is
@@ -148,8 +221,6 @@ export interface TimeWheelProps {
   onChange(next: { h: number; mi: number; s: number }): void
 }
 
-const overlay: CSSProperties = { position: 'absolute', left: 0, right: 0, pointerEvents: 'none' }
-
 /** HH:MM:SS drum: three scroll-snap columns with a center selection band + edge fade. */
 export function TimeWheel({ value, onChange }: TimeWheelProps) {
   return (
@@ -170,30 +241,13 @@ export function TimeWheel({ value, onChange }: TimeWheelProps) {
         overflow: 'hidden',
       }}
     >
+      {/* Both drum-wide overlays are GONE (DP-6). The centre band and the curvature fade each
+          spanned all three columns and both gutters, which is what made the drum read as one
+          slab; the phone has neither element. Its band is emergent (every row washed, the barrel
+          clear across the middle one) and its fade is per-column. `WheelColumn` owns both now. */}
       <WheelColumn count={24} value={value.h} onChange={(h) => onChange({ ...value, h })} dataCol="h" label="h" />
       <WheelColumn count={60} value={value.mi} onChange={(mi) => onChange({ ...value, mi })} dataCol="mi" label="m" />
       <WheelColumn count={60} value={value.s} onChange={(s) => onChange({ ...value, s })} dataCol="s" label="s" />
-
-      {/* center selection band */}
-      <div
-        style={{
-          ...overlay,
-          top: `calc(50% - ${ROW / 2}px)`,
-          height: ROW,
-          background: T.primarySoft,
-          borderTop: `1px solid ${T.primaryEdge}`,
-          borderBottom: `1px solid ${T.primaryEdge}`,
-        }}
-      />
-      {/* drum-curvature gradient fade (top + bottom) */}
-      <div
-        style={{
-          ...overlay,
-          top: 0,
-          bottom: 0,
-          background: `linear-gradient(180deg, ${FADE_TOP} 0%, rgba(15,32,53,0) 42%, rgba(15,32,53,0) 58%, ${FADE_BOTTOM} 100%)`,
-        }}
-      />
     </div>
   )
 }

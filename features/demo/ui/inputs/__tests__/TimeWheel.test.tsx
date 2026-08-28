@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, fireEvent } from '@testing-library/react'
 import { TimeWheel, indexFromScrollTop } from '@/features/demo/ui/inputs/TimeWheel'
 import { activeScheme } from '@/features/demo/ui/tokens/palette'
+import { T } from '@/features/demo/ui/inputs/input-theme'
 
 const ROW = 44
 
@@ -101,18 +102,48 @@ const FADE =
         rawBottom: 'rgb(226, 232, 240)',
       }
 
-describe('TimeWheel drum-curvature fade', () => {
+describe('TimeWheel per-column barrel (DP-6)', () => {
+  const barrels = (c: HTMLElement) =>
+    Array.from(c.querySelectorAll('[data-wheel-barrel]')) as HTMLElement[]
+
+  it('paints one barrel PER COLUMN, not one fade across the drum', () => {
+    const { container } = render(<TimeWheel value={{ h: 0, mi: 0, s: 0 }} onChange={vi.fn()} />)
+    // The finding itself: the old single overlay spanned all three columns AND both gutters,
+    // which is what made the drum read as one slab instead of three cylinders.
+    expect(barrels(container).map((b) => b.dataset.wheelBarrel)).toEqual(['h', 'mi', 's'])
+  })
+
   it('ends at the well composited onto the panel, never at the raw well stop', () => {
     const { container } = render(<TimeWheel value={{ h: 0, mi: 0, s: 0 }} onChange={vi.fn()} />)
-    // The drum ROOT also paints a `linear-gradient(180deg` (the well); the fade is the one with
-    // explicit percentage stops. Matching on the prefix alone silently reads the well.
-    const fade = Array.from(container.querySelectorAll('div')).find((d) =>
-      d.style.backgroundImage.includes('42%'),
-    ) as HTMLElement
-    expect(fade.style.backgroundImage).toContain(`${FADE.top} 0%`)
-    expect(fade.style.backgroundImage).toContain(`${FADE.bottom} 100%`)
-    // `withAlpha(stop, 1)` — the phone's own shipped defect — lands the raw well stops instead.
-    expect(fade.style.backgroundImage).not.toContain(FADE.rawTop)
-    expect(fade.style.backgroundImage).not.toContain(FADE.rawBottom)
+    for (const barrel of barrels(container)) {
+      const g = barrel.style.backgroundImage
+      expect(g).toContain(`${FADE.top} 0%`)
+      expect(g).toContain(`${FADE.bottom} 100%`)
+      // `withAlpha(stop, 1)` — the phone's own shipped defect — lands the raw well stops.
+      expect(g).not.toContain(FADE.rawTop)
+      expect(g).not.toContain(FADE.rawBottom)
+      // The retired fourth navy `#0f2035` the old fade ramped through. Every stop is now
+      // derived from the well, so this must not reappear in any spelling.
+      expect(g).not.toContain('15, 32, 53')
+    }
+  })
+
+  it('carries the phone’s 13 stops, clear across the middle row', () => {
+    const { container } = render(<TimeWheel value={{ h: 0, mi: 0, s: 0 }} onChange={vi.fn()} />)
+    const g = barrels(container)[0].style.backgroundImage
+    // `getGradientOverlayProps` (`TimePicker.styles.ts:332-349`) — 13 stops. The count is what
+    // separates a real barrel from a two-stop fade wearing the same outer colours.
+    expect(g.match(/\d+%/g)).toHaveLength(13)
+    // The clear middle is what makes the selection band emergent rather than an element.
+    expect(g).toMatch(/,\s*rgba\([^)]*,\s*0\)\s*50%/)
+  })
+
+  it('has no drum-wide band or fade left', () => {
+    const { container } = render(<TimeWheel value={{ h: 0, mi: 0, s: 0 }} onChange={vi.fn()} />)
+    // The old band was the only element painting `T.primaryEdge`; the old fade the only one with
+    // a 42% stop. Both are gone — the wash now lives on every ROW and the fade on every COLUMN.
+    const html = container.innerHTML
+    expect(html).not.toContain('42%')
+    expect(html).not.toContain(T.primaryEdge)
   })
 })

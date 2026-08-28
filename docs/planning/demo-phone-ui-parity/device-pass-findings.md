@@ -265,7 +265,15 @@ Two notes before this is scheduled. It is an **engine + store change, not a UI o
 
 **`RENDER_THIN` — bears, but the answer is "leave it".** The warn is emitted by `.ds-sync/package-validate.mjs:706` in the MAIN checkout (not this worktree, which has `.design-sync/`), and `:558` shows it is `variantsIdentical` — an **`outerHTML` string compare**, not a screenshot diff, so `NOTES.md:242-246` and the U8.4 report's D-4 describe the mechanism loosely while reaching the right conclusion. `TimeWheel.tsx:64`'s `el.scrollTop = value * ROW` is a DOM property that never serialises, so both stories are byte-identical markup. **Every layer this port adds is value-independent and serialises identically, so the warn keeps firing — correctly.** It clears only if `value` reaches the markup (a per-row selected style or a printed readout), which is D-4's stated trigger and exactly what the phone deliberately does not do. Do not chase it; doing so would re-introduce the second text colour `TimeWheel.tsx:107-112` deleted.
 
-**Status (DP-6)** — INVESTIGATED
+**Status (DP-6)** — **FIXED @ `08d26b5`.** `WheelColumn` now owns the barrel: the phone's 13-stop `getGradientOverlayProps` gradient per column (alphas verbatim, colours ramped to the WELL's own local ends rather than the phone's flat `#001e3f` workaround), a 1px `colors.primary` @ 0.12 right edge, `T.primarySoft` on EVERY row, and `text-shadow: 0 1.5px 3px rgba(0,0,0,0.6)` on the numerals. Both drum-wide overlays are deleted — the band and the fade each spanned all three columns and both gutters, which is what made the drum read as one slab. The selection band is now emergent, exactly as the phone's is.
+
+**Owner veto honoured:** the `h`/`m`/`s` pill (`TimeWheel.tsx:124-141`) is untouched — nothing was added there. Note it was *already* in the demo, byte-exact from `TimePicker.styles.ts:202`, before this work; if the ruling was "remove it", that is a separate one-line change and has NOT been made.
+
+Retired in passing: the old fade's `rgba(15,32,53,0)` mid-stops, the retired raised navy in rgb spelling. Every stop is now derived from the well.
+
+**Not done, and flagged:** the `SEAM(U4.1)` ground. `FADE_TOP`/`FADE_BOTTOM` still flatten over `T.raised`, but `PickerSheet` now mounts `GlassBottomSheet` (its own file says `SEAM(U4.1b)`) whose stops are `rgba(0,40,83,0.98)` → `rgba(14,57,101,1)`. So the barrel's outer stops end on the wrong ground — a real, separate defect with its own blast radius (`TimeWheel.test.tsx`'s hand-computed `FADE` constants move with it). Left for its own finding rather than folded into a barrel port.
+
+**Honest gap: not verified in a browser.** The pins assert the gradient string, the 13-stop count, per-column placement and the absence of both old overlays — but no Chromium capture was taken (reaching a time picker needs a full case-creation flow). After DP-8 shipped a visual regression under green pins, that distinction matters: this needs an eyeball on `pnpm dev`.
 
 ---
 
