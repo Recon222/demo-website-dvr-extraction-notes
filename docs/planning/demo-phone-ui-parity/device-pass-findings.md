@@ -301,4 +301,19 @@ No change to `demo.css` (D9 untouched), no change to the sticky declaration itse
 
 **Honesty about the pins:** **jsdom computes no layout, so it cannot see the scroll behaviour at all** — the Chromium table above is the only evidence for the *behaviour*. What the two new jsdom pins in `PhoneFrame.test.tsx` hold is the *mechanism*: the wrapper's height tracks the scale (mutation: drop the compensation → KILLED, `expected '' to be '544px'`), and the reserve still equals the column's padding, read out of `DemoExperience.tsx` (mutation: bottom padding 28→40 → KILLED, `expected 68 to be 56`). Two existing pins reddened on the reserve change and were updated with the new arithmetic: `expected 'scale(0.6699…)' to contain 'scale(0.70'`.
 
-**Status (DP-8)** — **FIXED @ `3bc7e17`.**
+**REGRESSION AND FIX (owner screenshot, same day).** The first fix shipped a second defect: the app screen rendered *past* the bezel's rounded corner at every scale below 1. Cause — giving the wrapper a height turned an existing `display: flex` container into one that sizes its child: `align-items` defaults to `stretch`, so the titanium shell was squashed from its natural 812 to `812 * scale` while the screen inside kept its hard `height: 786`. Fix is one property, `alignItems: 'flex-start'` (`PhoneFrame.tsx:77`).
+
+**The probe was the real failure.** It measured `[data-phone-screen]` alone — and the screen was positioned correctly the whole time — so it reported PASS over a visibly broken frame, and the 1:1 case (900px) genuinely was fine. `_dp8/probe.mjs` now asks two independent questions, INTACT (screen inside bezel, all four sides) and IN VIEW, across six viewport heights including the 820/768/740 band the owner's window sat in.
+
+| viewport | before | after |
+|---|---|---|
+| 1440×900 (scale 1) | intact | intact |
+| 1440×820 | **spill 33px** | intact |
+| 1366×768 | **spill 76px** | intact |
+| 1440×740 | **spill 97px** | intact |
+| 1440×700 | **spill 123px** | intact |
+| 1280×560 | **spill 183px** | intact |
+
+Regression run: **FAIL 15/18**. After: **PASS 18/18 intact and in view**, at 3 scroll depths × 6 heights. The jsdom pin gained `alignItems` (mutation: remove it → KILLED, `expected '' to be 'flex-start'`).
+
+**Status (DP-8)** — **FIXED @ `3bc7e17`, regression fixed @ `a15d896`.**

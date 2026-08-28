@@ -73,8 +73,16 @@ export function PhoneFrame({ children, tabBar, screenRef }: PhoneFrameProps) {
     {/* `height` compensates the transform below. A CSS transform scales the PAINT and leaves the
         LAYOUT box at its unscaled size, so without this the frame still occupies 812px of column
         however small it is drawn — which made the sticky column's box taller than a short
-        viewport, and the phone could not stay fully in view at the foot of the page (DP-8). */}
-    <div style={{ display: 'flex', justifyContent: 'center', flex: '0 0 auto', height: PHONE_FRAME_H * scale }}>
+        viewport, and the phone could not stay fully in view at the foot of the page (DP-8).
+
+        `alignItems: 'flex-start'` is LOAD-BEARING and must not be dropped. This is a flex
+        container, so the default `stretch` resolves the child's cross-size to the container's —
+        and the moment the line above gave that container a height, the shell was squashed from
+        its natural 812 to `812 * scale` while the screen inside it kept its hard `height: 786`.
+        The app then rendered past the bezel's rounded corner at every scale below 1 (measured:
+        33px of spill at an 820px viewport, 183px at 560px). Only the 1:1 case looked right,
+        which is why the first probe — it measured the screen alone — called it green. */}
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', flex: '0 0 auto', height: PHONE_FRAME_H * scale }}>
       <div
         data-phone="frame"
         style={{

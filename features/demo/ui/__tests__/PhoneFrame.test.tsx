@@ -128,6 +128,18 @@ describe('PhoneFrame', () => {
     // The wrapper reserves the SCALED height. At scale 1 this is 812; here it must not be.
     expect(wrapper.style.height).toBe(`${PHONE_FRAME_H * scale}px`)
     expect(wrapper.style.height).not.toBe(`${PHONE_FRAME_H}px`)
+
+    /**
+     * The height above is only safe because the flex default is overridden. `align-items`
+     * defaults to `stretch`, which resolves a flex child's cross-size to the container's — so
+     * the height squashed the titanium shell from its natural 812 to `812 * scale` while the
+     * screen inside kept its hard `height: 786`, and the app rendered past the bezel's rounded
+     * corner at every scale below 1 (33px of spill at an 820px viewport, 183px at 560px).
+     *
+     * jsdom computes no layout and cannot see that spill; the Chromium matrix in the DP-8 doc
+     * row is the behavioural evidence. This pins the one property that prevents it.
+     */
+    expect(wrapper.style.alignItems).toBe('flex-start')
   })
 
   /**
