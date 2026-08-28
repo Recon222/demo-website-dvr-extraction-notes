@@ -111,18 +111,47 @@ merges the other way — generated wins, and a hand-written entry survives only 
 the generator produced NOTHING for (a component it SKIPPED: no props, no matching
 export, or a checker error). Probed both directions.
 
-**Two live consequences of un-freezing it**, neither a regression (both states are
-strictly more contract than the frozen 3-prop entries they replaced), but both worth
-knowing:
-1. **Some emitted `.d.ts` now reference names they do not define** — `GpsCoordinates`,
-   `GpsSource`, `ReverseGeocodeResult`, `OcrRecognizeOutcome`, and a bare `K`.
-   `printType` expands local object types but has no INTERSECTION branch, so
-   `GpsCoordinates & { source: GpsSource }` falls through to `type.getText()`.
-   `all .d.ts parse cleanly` still passes, so this is a contract-quality gap, not a
-   build failure. The fix is a `type.isIntersection()` arm beside the union one.
-2. **`isFieldVisible`'s 57-member field-id union is inlined into six screens' entries**,
-   which is most of their size. Bug 1 below (expand only repo-declared types) is why it
-   expands at all; it is correct, just verbose.
+**Three MIS-ENCODINGS fixed 2026-08-27 (W4/F83).** Un-freezing the generator exposed
+contracts that were not merely incomplete but WRONG — each silent for a campaign,
+because nothing read the generator's output back. All three are now pinned by
+`features/demo/ui/__tests__/design-sync-entry.test.ts`, each probed:
+
+1. **Union array elements are parenthesised** (`printType`'s array branch). `X[]` binds
+   tighter than `|`, so `activeStatuses: 'started' | 'working' | 'complete'[]` meant
+   `'started' | 'working' | ('complete'[])` — a contract that REJECTS the array
+   `MapFiltersSheet` actually takes and ACCEPTS a bare `'started'` string. The component
+   then runs `.includes()` on a string, which is a SUBSTRING test, so the design agent's
+   "valid" call renders every status chip pressed. Wrong in both directions.
+2. **Intersections, `Promise<T>` and generic signatures resolve.** There was no
+   `isIntersection()` arm, so `GpsCoordinates & { source: GpsSource }` fell through to
+   `type.getText()` with neither name bound; `Promise<T>` did the same. And a generic
+   signature emitted an UNBOUND type parameter — `NewCaseModal.onChange` shipped as
+   `(field: K, value: NewCaseFields[K]) => void` with no `K` anywhere, which is
+   unresolvable in principle: `cfg.dtsPropsFor` is an interface BODY and there is nowhere
+   to declare a binder. Generic parameters are now ERASED to their constraint, with the
+   indexed access collapsed through `getApparentType()`. **Zero unresolved local type
+   names remain**, and the suite scans for them rather than listing them.
+   ⚠ `getApparentType()` BOXES primitives (`string` -> `String`), so it is applied only
+   where the declared type mentions a type parameter, and boxed spellings are mapped back.
+3. **A UNION props type is KNOWN-LOSSY, and now says so.** `export interface XProps { … }`
+   cannot express a union — nor can `extends`, which takes an intersection only. The old
+   code called `getProperties()` on the union, which returns only the members common to
+   every arm with optionality WIDENED, so `OverlayHeader` shipped as
+   `backLabel?: string; onBack?: () => void` — exactly the state W3/F74 closed, where an
+   icon-only header renders with no accessible name. The flatten is unavoidable; telling
+   the design agent the illegal state is legal is not. The generator now prefixes such a
+   body with a `/* KNOWN-LOSSY … DISCRIMINATED GROUP … */` comment, which is valid inside
+   an interface body and survives into the emitted `.d.ts`.
+   **`OverlayHeader` is the only KNOWN-LOSSY contract today.** If a second union props
+   type arrives it gets the same marker automatically.
+
+**Still true and not a defect:** `isFieldVisible`'s 57-member field-id union is inlined
+into six screens' entries, which is most of their size. Bug 1 below (expand only
+repo-declared types) is why it expands at all; it is correct, just verbose.
+
+**Idempotency is the gate.** Two consecutive runs must produce a byte-identical
+`config.json` — verified after W4/F83. A generator whose output moves on a second run
+with no source change is encoding something unstable.
 
 Four bugs found building it — all would silently degrade the contract, so don't
 "simplify" these away:

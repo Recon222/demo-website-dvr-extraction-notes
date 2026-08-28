@@ -100,4 +100,63 @@ describe('the design-sync bundle entry (D7 / U8.4)', () => {
     expect(cfg.dtsPropsFor.ModalShell).toContain('closeAccessibilityLabel: string')
     expect(cfg.dtsPropsFor.ModalShell).not.toContain('closeAccessibilityLabel?')
   })
+
+  /**
+   * W4/F83 — the three MIS-ENCODINGS. Each shipped a contract that was not merely incomplete but
+   * WRONG, and each was silent for a whole campaign because nothing read the generator's output
+   * back. These are general scans, not per-component expectation tables: a table over 37
+   * contracts fails on every legitimate prop change and gets updated without being read.
+   */
+  describe('the shipped contracts are well-formed (W4/F83)', () => {
+    const bodies = Object.entries(cfg.dtsPropsFor)
+    /** Comments carry prose; string literals carry data. Neither is a type reference. */
+    const typeText = (body: string) => body.replace(/\/\*[\s\S]*?\*\//g, '').replace(/'[^']*'/g, "''")
+
+    it('names no type the emitted .d.ts does not define', () => {
+      // The emitted file imports only `React`, so a bare capitalised identifier that is not a
+      // `React.*` member and not a DOM lib type is unresolvable IN PRINCIPLE — the design agent
+      // is told a prop's shape has a name and given no way to look it up. This is what the
+      // missing intersection arm, the dropped generic binder and the unexpanded `Promise<T>`
+      // all produced (`GpsCoordinates`, `GpsSource`, `ReverseGeocodeResult`,
+      // `OcrRecognizeOutcome`, and a bare `K`).
+      const DEFINED = new Set([
+        'React', 'Array', 'Promise', 'Date', 'File', 'Blob',
+        // lib.dom, which the design tool's tsc has.
+        'PositionOptions', 'MediaStreamConstraints', 'MediaStream', 'MediaDeviceInfo', 'HTMLCanvasElement',
+      ])
+      const offenders = bodies.flatMap(([name, body]) => {
+        const names = [...typeText(body).matchAll(/(?<![.\w])([A-Z][A-Za-z0-9_]*)(?!\.)\b/g)].map((m) => m[1])
+        const unknown = [...new Set(names)].filter((n) => !DEFINED.has(n))
+        return unknown.length ? [`${name}: ${unknown.join(', ')}`] : []
+      })
+      expect(offenders, 'unresolvable type names in the shipped .d.ts contracts').toEqual([])
+    })
+
+    it('parenthesises every union array element', () => {
+      // `X[]` binds tighter than `|`, so `'a' | 'b' | 'c'[]` means `'a' | 'b' | ('c'[])` — a
+      // contract that rejects the array the component takes and accepts a bare string. The
+      // signature is a union arm carrying its own `[]` suffix with no enclosing paren.
+      //
+      // The `[]` must be preceded by something that is NOT a closer. `{ …; status?: 'a' | 'b' }[]`
+      // and `('a' | 'b')[]` are both correct — the union is already bracketed by the `}` or the
+      // `)` — so the character immediately before `[]` is what separates them from the bug, where
+      // the suffix lands directly on a union arm (`| 'complete'[]`). Measured: without the
+      // closer exclusion this reds on `ExploreChecklist` and `WizardDrawer`, which are fine.
+      const offenders = bodies.flatMap(([name, body]) =>
+        / \| [^;|]*[^\s})\]]\[\]/.test(typeText(body)) ? [name] : [],
+      )
+      expect(offenders, "a union array element must be parenthesised — `('a' | 'b')[]`").toEqual([])
+    })
+
+    it('marks a flattened union props type as KNOWN-LOSSY rather than silently widening it', () => {
+      // `OverlayHeader`'s real props type is `Base & ({onBack; backLabel} | {onBack?: undefined;
+      // backLabel?: undefined})` — the discriminated pair W3/F74 introduced so an icon-only
+      // header cannot ship without an accessible name. An interface BODY cannot express a union,
+      // so the flatten is unavoidable; what is NOT acceptable is flattening it to
+      // `backLabel?: string; onBack?: () => void` with no trace, which tells the design agent
+      // F74's illegal state is legal. The marker is the honest form of the loss.
+      expect(cfg.dtsPropsFor.OverlayHeader).toContain('KNOWN-LOSSY')
+      expect(cfg.dtsPropsFor.OverlayHeader).toContain('DISCRIMINATED GROUP')
+    })
+  })
 })
