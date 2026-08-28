@@ -126,7 +126,6 @@ const drawerProps = {
   onCaptureMedia: vi.fn(),
   onRecordAudio: vi.fn(),
   onOpenMediaLibrary: vi.fn(),
-  saveStatus: null,
   mediaTools: { mediaCapture: true, audioRecording: true },
 }
 

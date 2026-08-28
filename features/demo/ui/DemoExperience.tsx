@@ -154,7 +154,7 @@ import { buildRetentionView, type RetentionView } from '@/features/demo/engine/l
 import { importLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
 import { clock } from '@/features/demo/ui/inputs/clock'
 import { saveTextFile } from '@/features/demo/ui/inputs/download-file'
-import { describeSaveStatus, type SaveStateKind, type SaveStatusView } from '@/features/demo/engine/logic/save-status'
+import type { SaveStateKind } from '@/features/demo/engine/logic/save-status'
 import { toCaseCards, toCaseSheet } from '@/features/demo/ui/screens/screenData'
 import type { CameraEntry, CaseStatus, DuplicateMode, FormFieldId, FormStepId, MediaItem, MediaKind, NoteSectionId, OcrProof, Profile, ScopeEntry, UserProfile } from '@/features/demo/engine/types'
 import '@/features/demo/ui/demo.css'
@@ -649,28 +649,10 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
     }
   }, [injectedStore, store])
 
-  /**
-   * The drawer footer's save-status line (P4.2, matrix row 80).
-   *
-   * Sampled when the drawer OPENS, not continuously: the fact lives on the persistence handle
-   * (a ref, deliberately — R-2's "read it when you're about to make a claim, never capture it
-   * at mount"), and a status line is exactly such a claim. `flush()` first, so a write still
-   * inside its 250ms debounce lands before we describe it — otherwise a visitor who types and
-   * immediately opens the menu is told the age of the write BEFORE theirs.
-   *
-   * Cleared on close so the next open can never show a stale reading. A missing handle counts
-   * as `unavailable` — same rule as `saveProgress`: never assume a wired handle.
-   */
-  const [saveStatus, setSaveStatus] = useState<SaveStatusView | null>(null)
-  useEffect(() => {
-    if (!drawerOpen) {
-      setSaveStatus(null)
-      return
-    }
-    const handle = persistenceRef.current
-    handle?.flush()
-    setSaveStatus(describeSaveStatus(handle?.saveState() ?? { kind: 'unavailable' }, clock.now().getTime()))
-  }, [drawerOpen])
+  // The drawer footer's save-status line was removed at DP-3 (owner ruling): the phone's drawer
+  // footer carries only the app name and version, and the demo's line had no counterpart there
+  // — it was an original, and ledger §59d's "sampled per open, never ticks" caveat retires with
+  // it. `describeSaveStatus` went too; `SaveState` stays, since `store/persistence.ts` owns it.
 
   // Rail copy, most-specific first (mirrors the manifest anchor in selectExploreStatus):
   // an open modal shows its own copy (Create a Case / Add a Location / Import Location),
@@ -3073,7 +3055,6 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
             onCaptureMedia={launchMediaCapture}
             onRecordAudio={launchAudioRecording}
             onOpenMediaLibrary={openMediaLibrary}
-            saveStatus={saveStatus}
             mediaTools={selectMediaToolsVisible(store.getState())}
           />
           {/* The dashboard's long-press sheet (P3.2). Mounted only while a case is open —
