@@ -159,7 +159,69 @@ Sized: ~17 sites, but only two guard edits carry the enforcement. No existing te
 
 **Status (DP-4)** — **PARTIAL @ `dfb9878`.** Guard-first, as ruled — but via `FAMILIES`, not the hex->rgb normaliser + widened `RETIRED` this row proposed: that mechanism already existed (regex over hex AND rgb/rgba, comment-stripped, ruled exemptions, two anti-vacuity controls), built after ledger §120 for exactly this. Four families added; rows 3, 8-14 swapped (rows 3/10/11 adopt `glassCardNested` exactly as U1.3 did at its three sibling sites). Three probes KILLED — including planting a SPACED `rgba(13, 27, 42, 0.55)` in a live file, which the old `RETIRED` sweep stayed green on in the same run.
 
-**AWAITING OWNER — four holds:**
-- **Rows 15-17 + the `modalScrim` SEAM(U4.4)** — per the owner's ruling. No family covers those colours, so the new guard does not red on them; nothing was exempted that did not need to be.
-- **Row 12 (`_shared.tsx:561`, the `Accordion`)** — exempted in the retired-navy family *with a comment*, because its phone counterpart (`FormSection.tsx:142-155`, non-glass) paints **no fill at all**. The port is "remove the ground", a visible design change rather than a token swap.
+**OWNER RULINGS (2026-08-28) — three of the four holds are closed:**
+- **Rows 16 + 17 (map ground `#0a1422`, canvas gradient) — CLOSED, KEEP AS-IS.** Owner sees no difference on device: the ground is tile-covered. No change, no guard family.
+- **Row 15 (`import/PasteStage.tsx:43`) — CLOSED, KEEP.** The import flow's terminal aesthetic is deliberate.
+- **`modalScrim` SEAM(U4.4) — HOLD STANDS**, owner deciding separately.
+- **Rows 5-7 (`#05080d` camera/recorder vignettes) — HOLD STANDS.**
+- **Row 12 (`_shared.tsx:561`, the `Accordion`) — SUPERSEDED BY DP-5.** The owner independently reported these very boxes from a device screenshot, which is the ruling this hold was waiting for. Its exemption in the retired-navy family is now temporary, and DP-5 removes it.
+
+Nothing above is exempted in the guard that did not need to be: no family covers rows 15-17's colours, so the guard is silent on them by construction rather than by exemption.
 - **Rows 5-7 (`#05080d` camera/recorder grounds)** — NEWLY discovered during implementation, and the reason they were not swept: `OcrCaptureScreen.tsx:577` paints `#05080d` as the **outer stop of a deliberate vignette** (`radial-gradient(ellipse at center, colors.background, #05080d)`) in the same file as the shell at `:576`, and `MediaCaptureScreen` has the same shape. A per-file guard cannot separate the shell from the vignette, and repainting four full-screen surfaces from near-black to navy is a bigger visual change than the drawer's — the owner has not seen it in a screenshot. Recommend ruling on these together with 15-17.
+
+---
+
+## DP-5 — OIC / Video-Coordinator groups render as dark cards, not flat sections
+
+**Seen** — In New Case / Edit Case the demo puts "Officer in Charge" and "Video/Canvas Coordinator" inside dark boxes; the phone renders them flat on the screen ground — bold title, hairline rule, plain fields (owner's image 1).
+
+**This is DP-4 row 12, and the screenshot is the ruling it was held for.** Same component, same line. The hold is lifted.
+
+**Root cause (demo)** — `Accordion` in `features/demo/ui/screens/_shared.tsx:559-575`, rendered at `NewCaseModal.tsx:249` ("Officer in Charge") and `:254` ("Video / Canvas Coordinator") — its only two callers. It is a `<details>` disclosure painting a card:
+
+```
+marginBottom: 14, borderRadius: 10, border: GLASS.border,
+background: 'rgba(13,27,42,0.4)', overflow: 'hidden'
+```
+
+That ground is the retired `#0d1b2a` navy in the rgb spelling DP-4 exposed. It entered at `802ab13` ("New Case — coordinator + incident location + notes (phase 2)") — an original the prototype invented, never a port.
+
+**The phone's counterpart** is `FormSection title=… collapsible` **without** `glass` (`NewCaseModal.tsx:333-334` and `:367-368`), i.e. the "Standard non-glass section" branch at `FormSection.tsx:142-147` — a bare `<View style={styles.container}>` whose *entire* styling is `marginBottom: Layout.spacing.lg` (24). No background, no border, no radius. Five concrete deltas:
+
+| | phone | demo |
+|---|---|---|
+| container | no fill, no border, `marginBottom` 24 (`FormSection.tsx:151-153`) | card: `rgba(13,27,42,0.4)` + `GLASS.border` + radius 10, `marginBottom` 14 |
+| header rule | `paddingBottom` 8 + `borderBottomWidth: 1` + `marginBottom` 16 (`:175-183`) | none |
+| title | `fontSize.lg` (18) / semibold (`:184-187`) | 14 / 600 |
+| collapse affordance | `'+'` / `'−'` text, `fontSize['2xl']` (24), bold, `width: 24`, `colors.textSecondary` (`:80-84`, `:190-195`) | a rotating chevron SVG |
+| default state | **expanded** — `defaultCollapsed = false` (`:60`), and neither call site overrides it | **collapsed** (`<details>` with no `open`) |
+
+**Phone dead code?** — **NO.** Both `FormSection` branches are live: the glass branch is what the demo's `SectionCard` ports for the wizard screens, and the non-glass branch is what these two sections use. Nothing to delete. The demo's card is not a mis-read of the phone — it is prototype furniture that predates the port and no phase was ever scoped to it.
+
+**Fix** — One component, both call sites untouched. Rework `Accordion` into the phone's non-glass collapsible section: drop `background`/`border`/`borderRadius`/`overflow`, take `marginBottom: spacing.lg`, give the summary the header rule (`paddingBottom: spacing.sm`, `borderBottomWidth/Style/Color`, `marginBottom: spacing.md`) and 18/600, and swap the chevron for the `+`/`−` indicator at 24px bold. **Default it open**, matching `defaultCollapsed = false` — `<details open>`.
+
+Renaming it (`FormSection`? `PlainSection`?) is optional and not proposed: two callers, and the name still describes what it does.
+
+Watch: the ruling also removes `screens/_shared.tsx` from the retired-navy family's `exempt` list in `palette.test.ts` — leaving it there would trip the exemption anti-vacuity test ("every exemption is still a real one"), so that deletion is part of the same commit and is a second RED confirming the colour is gone.
+
+**Status (DP-5)** — INVESTIGATED
+
+---
+
+## DP-7 — New Case has no "Use Current Location" / Geocode block
+
+**Seen** — The phone's New Case modal carries the "Use Current Location (Highest Accuracy)" button with a GEOCODE toggle above Latitude/Longitude (owner's image 3); the demo's New Case modal has neither.
+
+**REFUTATION of the finding's premise.** The brief says the demo has the block "ONLY in the location modal, not New Case". It is not in the location modal either. `GpsCaptureControl` has exactly **one** render site in the whole demo — `features/demo/ui/inputs/LocationFields.tsx:255`, the **recovery-location** form (Add/Edit Location). The Edit *Incident* Location modal renders `IncidentLocationFields` (`EditIncidentLocationModal.tsx:78`), which deliberately does **not** mount it. So the block is missing from *both* incident surfaces, for one reason.
+
+**Root cause — a recorded deferral, not a miss.** `IncidentLocationFields.tsx:31-39` documents the omission in situ, and ledger **§53a** (`docs/code-reviews/deferred.md`) carries it with a trigger. The phone mounts `GpsCaptureControl` at `IncidentLocationForm.tsx:305-308` with `INCIDENT_ACCURACY_OVERRIDE = 'precise'` and `label="Use Current Location (Highest Accuracy)"` — which is exactly the label in the screenshot, and why it differs from the demo's plain `'Use Current Location'` (`GpsCaptureControl.tsx:56`; the label is already a prop).
+
+**D20 / plumbing answer: NO, this is not presentational-only — it is the one blocker.** `DemoCase.incidentCoordinates.source` is typed to `COORD_SOURCES = ['geocoded', 'manual']` (`engine/types/index.ts:364`, consumed at `:373` and `:391`) under an explicit invariant — *"Incident coordinates come from the address pick or hand entry — never a live GPS fix"*. `:372` says it outright: *"widening `COORD_SOURCES` reaches every one of them."* A capture button must stamp a third provenance, so the change runs through `NewCaseInput`, `createCase`, the persistence schema and the provenance chip. Everything *else* is presentational: `GpsCaptureControl` is already parameterised (`label`, `config`, `geocodeEnabled`/`onToggleGeocode`), and New Case already holds `incidentLatitude` / `incidentLongitude` / `incidentCoordinateSource` in its form state (`NewCaseModal.tsx:269-271`, read back at `:284-286`).
+
+**Phone dead code?** — **NO.** `IncidentLocationForm.tsx:305-308` is live and is what the screenshot shows.
+
+**Fix** — Take §53a's own trigger, which spells it: widen `COORD_SOURCES` to include `'gps'` (plus the store, create path, persistence schema and provenance chip that ride on it), then drop `GpsCaptureControl` in above the lat/lng row **in `IncidentLocationFields`** — which fixes New Case and Edit Incident Location together, since both render those fields — passing `label="Use Current Location (Highest Accuracy)"` and moving `geocodeEnabled` from "implicitly on" to the control's toggle. §53a also says to re-read §45a (the `onClick` busy guard) and §45f (the write-guard token) while doing it.
+
+Two notes before this is scheduled. It is an **engine + store change, not a UI one**, so it wants its own package and a widened-union sweep rather than riding a device-pass fix. And the demo's New Case section is currently hand-rolled fields (`NewCaseModal.tsx:259-280`) rather than `IncidentLocationFields`, so "one form, two modes" (matrix row 23) is only half-true today — routing New Case through `IncidentLocationFields` first would make the drop-in land in one place instead of two.
+
+**Status (DP-7)** — INVESTIGATED
