@@ -6,6 +6,7 @@ import { AudioPreviewScreen } from '@/features/demo/ui/screens/AudioPreviewScree
 import { SAMPLE_BADGE } from '@/features/demo/ui/controls/sample-badge'
 import { touchTarget } from '@/features/demo/ui/tokens/scale'
 import { severityTone } from '@/features/demo/ui/tokens/status'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /** jsdom rewrites `#rrggbb` to `rgb(r, g, b)` on read-back (mutation-testing SKILL, project
  *  hazards) — compare through the same normalisation rather than by hex. */
@@ -80,6 +81,19 @@ afterEach(() => {
 })
 
 describe('AudioPreviewScreen — the phone surface', () => {
+  /**
+   * DP-9. Review Audio is a SCREEN, so it takes the app ground the phone gives it —
+   * `AudioRecordingFlow.tsx:151-153` mounts it through `Screen.tsx:191`, `colors.background`.
+   * It shipped on the near-black the capture surfaces use, which is the family the owner has
+   * been finding. The recorder screen it sits beside is a capture surface and stays held.
+   */
+  it('reviews on the app ground, not the capture near-black (DP-9)', () => {
+    view()
+    // The screen is `position: absolute; inset: 0` inside the render container.
+    const root = document.querySelector('[style*="z-index: 40"]') as HTMLElement
+    expect(root.style.background).toBe(hexToRgb(colors.background))
+  })
+
   it('renders the review chrome and both actions', () => {
     view()
     expect(screen.getByText('Review Audio')).toBeInTheDocument()

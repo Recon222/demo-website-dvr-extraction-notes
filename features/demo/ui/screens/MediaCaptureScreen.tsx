@@ -838,6 +838,13 @@ function ReviewStage({
     <div
       style={{
         ...shell,
+        // DP-9: the REVIEW stage is a screen, not a viewfinder, so it takes the app ground the
+        // phone gives it (`CameraScreen.tsx:283` — `colors.background`) rather than `shell`'s
+        // near-black. Overridden here rather than in `shell` on purpose: `shell` is shared with
+        // the live camera and permission stages, which sit under a deliberate vignette and stay
+        // held (findings rows 5-6). The LETTERBOX behind the media element below is untouched —
+        // that is a real full-bleed case and near-black is correct for it.
+        background: colors.background,
         overflowY: 'auto',
         padding: '44px 20px 24px',
         display: 'flex',

@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 
+import { colors } from '@/features/demo/ui/tokens/palette'
+
 import {
   CAPTURE_PERMISSION_COPY,
   MAX_RECORDING_DURATION_MS,
@@ -43,6 +45,11 @@ import {
  * object-URL pins fail if `handOff()` is deleted OR if it is called unconditionally, and the
  * Stop-gate pin fails if the `canStop` guard is dropped.
  */
+/** jsdom rewrites an inline hex to `rgb()` on read-back. */
+const hexToRgb = (hex: string): string => {
+  const n = parseInt(hex.slice(1), 16)
+  return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`
+}
 
 const CAPTURED_AT = '2026-07-30 14:05:06'
 
@@ -181,6 +188,24 @@ describe('no capture capability — the honest sample path', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Video mode' }))
     expect(shutter('Attach sample clip')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Start recording' })).not.toBeInTheDocument()
+  })
+
+  /**
+   * DP-9. The review stage is a SCREEN, so it takes the app ground the phone gives it
+   * (`CameraScreen.tsx:283` — `colors.background`), not the near-black `shell` shares with the
+   * live viewfinder. The letterbox behind the media element is a separate, legitimate case and
+   * deliberately stays dark — pinned here too, so "fix the ground" cannot creep into it.
+   */
+  it('reviews on the app ground, with the media letterbox left dark (DP-9)', () => {
+    mount(harness())
+    fireEvent.click(shutter('Attach sample photo'))
+
+    const img = screen.getByRole('img', { name: 'Captured image preview' })
+    const stage = img.closest('div[style*="overflow-y"]') as HTMLElement
+    expect(stage.style.background).toBe(hexToRgb(colors.background))
+    // The full-bleed letterbox is NOT the ground and must not follow it.
+    expect(stage.style.background).not.toBe(img.style.background)
+    expect(img.style.background).not.toBe('')
   })
 
   it('attaches the sample photo and reviews it, labelled at every step', () => {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useRef, useState, type CSSProperties } from 'react'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 import {
   formatDuration,
@@ -107,7 +108,7 @@ export function AudioPreviewScreen({ captured, defaultFilenameBase, notice, onSa
   }, [])
 
   return (
-    <div style={{ position: 'absolute', inset: 0, zIndex: 40, background: '#05080d', padding: '54px 20px 22px', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ position: 'absolute', inset: 0, zIndex: 40, background: colors.background, padding: '54px 20px 22px', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
       {/* SEAM(U7.2): one of `OverlayHeader`'s four adopters (A61). The phone paints this exact
           header through `FormLayout` -> `Header` (`AudioRecordingFlow.tsx:127` —
           `title="Review Audio" showExit onExit={onCancel}`), which is where the seam's 18/600

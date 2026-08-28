@@ -329,3 +329,39 @@ No change to `demo.css` (D9 untouched), no change to the sticky declaration itse
 Regression run: **FAIL 15/18**. After: **PASS 18/18 intact and in view**, at 3 scroll depths × 6 heights. The jsdom pin gained `alignItems` (mutation: remove it → KILLED, `expected '' to be 'flex-start'`).
 
 **Status (DP-8)** — **FIXED @ `3bc7e17`, regression fixed @ `a15d896`.**
+
+---
+
+## DP-9 — Media preview screens carry the capture near-black
+
+**Seen** — The video preview and image preview screens/modals show the same wrong dark ground the owner has been finding across the app.
+
+**Same family as DP-4 rows 5-7, and the owner has now ruled on the PREVIEW half of it.** My earlier correction stands: the phone's capture/preview screens are *not* black — `CameraScreen.tsx:283` and `RecorderScreen.tsx:279` both paint `colors.background`; only the overlays on top are dark.
+
+**Root cause (demo)** — two screen GROUNDS:
+- `screens/MediaCaptureScreen.tsx` `ReviewStage` — spread `...shell`, whose ground is `#05080d`. `shell` is shared with the live viewfinder and the permission stage.
+- `screens/AudioPreviewScreen.tsx:110` — `#05080d` directly.
+
+**The separation the owner asked for.** Three things in these files are dark and only two of them are wrong:
+
+| surface | verdict |
+|---|---|
+| `ReviewStage` root, `AudioPreviewScreen` root | **GROUNDS — fixed** → `colors.background` |
+| `MediaCaptureScreen` img/video letterbox, `MediaLibrarySheet.tsx:551,562` | **KEEP.** A `object-fit: contain` element needs a matte; the phone's `<Image>`/`<Video>` carry no fill of their own, so there is nothing to port and near-black is the right matte. |
+| `MediaLibrarySheet.tsx:488` `#000` | **KEEP** — the full-bleed fullscreen viewer, the owner's own exempt precedent. |
+
+`MediaLibrarySheet.tsx:384`'s `rgba(10,20,34,0.85)` already matches phone `MediaPreview.tsx:304` — untouched.
+
+**Phone dead code?** — **NO.** `CameraScreen.tsx:283` and `RecorderScreen.tsx:279` are live and are the spec.
+
+**Fix** — `ReviewStage` overrides `background` *after* the `shell` spread rather than changing `shell` itself: `shell` still feeds the live camera and permission stages, which sit under a deliberate vignette and stay held. `AudioPreviewScreen` takes the token directly.
+
+**Rows 5-7 hold, updated:**
+- Row 7 (`AudioPreviewScreen`) — **CLOSED by this finding.**
+- Row 6, `MediaCaptureScreen.tsx:99` (`shell`, the live viewfinder) — **STILL HELD.** Capture surface, vignette-entangled.
+- Row 6, `OcrCaptureScreen.tsx:576-577` — **STILL HELD, and deliberately untouched**: the owner has a separate OCR issue coming.
+- Row 5 (`AudioRecorderScreen.tsx:388`) — **STILL HELD.** The recorder is a capture surface, not a preview.
+
+No guard family was added: after the fix only one file still needed protecting, and a family would have required three exemptions (the two held capture screens plus OCR) to buy it. Two direct pins instead, both mutation-verified.
+
+**Status (DP-9)** — **FIXED @ `48ad825`.**
