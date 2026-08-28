@@ -44,6 +44,10 @@ const tier = GLASS_TIER[scheme]
  * one waiting; deferring to jsdom removes the category. (Credit: f85-screens, independently, on
  * `AudioRecorderScreen.test.tsx:406`.)
  */
+/** ponytail: SOLID COLOURS ONLY. jsdom parks a gradient on `background-image`, so this returns
+ *  `''` for one and the pin would compare two empty strings. Both call sites below pass a single
+ *  tier stop. For a gradient use `normGradient`'s shape (`glass-card-recipe.test.tsx:72-77`) —
+ *  write `background`, read `backgroundImage`. (Ceiling named by f85-screens on its own copy.) */
 function jsdomBackground(value: string): string {
   const probe = document.createElement('div')
   probe.style.background = value
