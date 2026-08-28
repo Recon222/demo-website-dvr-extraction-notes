@@ -108,35 +108,53 @@ Recommendation: **keep**, but only if the owner still wants the honesty line in 
 
 **Seen** — Several surfaces had wrong (too dark) backgrounds before W4; the owner believes all but the drawer were fixed and wants certainty.
 
-**Result — the owner's belief is correct. The drawer is the only residual, and it is two sites, both already written up as DP-2.** One further in-frame surface shares the same orphan hex.
+> **CORRECTION.** This row's first version said "clean apart from the drawer". **That was wrong.** It swept only `background: '#hex'` **literals**, so it missed every ground written as `rgba(...)` — which is most of them. An independent second sweep found **17**. Two further claims in that first version were also wrong and are corrected below: the phone *does* have an autocomplete suggestion list (`AutocompleteSuggestionList.tsx:77`), and the camera/recorder screens are *not* deliberately black on the phone. Both errors came from stopping the search at the first plausible file.
 
-**Why these three survived every guard — the structural gap.** The campaign has two mechanical sweeps and neither can see these:
-- `ui/tokens/__tests__/palette.test.ts:81-92` — the `RETIRED` list, 7 entries, sweeps `ui/**` and `.design-sync/previews/` for hexes **the PHONE retired** in its P0 re-base (`#0d1b2a`, `#1e3a5f`, `#2a4a6f`, `#132236`, `#0f2035`, `#35a0d6`, `#2580ad`).
-- `.design-sync/check-rn-parity.mjs` — 145 anchor rows, compares values that **exist on both sides**.
+**Result — NOT clean. ~17 residual darker-than-phone surfaces**, in two families, both explained by the same guard gap.
 
-`#0b1626` and `#101f33` are demo-**original** prototype navies. The phone never had them, so they were never retired; nothing on the phone corresponds to them, so no anchor row covers them. A demo-invented ground is invisible to both guards by construction. That is the whole reason the drawer slipped through five waves.
+### Root cause — the guards have two blind spots, and one was foreseen
 
-**The raw-hex ground sweep** (every `background`/`backgroundColor` set to a hex literal under `features/demo/ui/**`, tests excluded — 21 sites, all classified):
+`ui/tokens/__tests__/palette.test.ts` sweeps `ui/**` for retired colours by substring match. Its `RETIRED` list (`:81-92`) holds **7 entries, all spelled as hex**.
 
-| demo site | paints | verdict |
-|---|---|---|
-| `controls/WizardDrawer.tsx:358` | `#0b1626` | **DARKER** — phone `CustomDrawerContent.tsx:153` = `colors.background` `#002853`. **DP-2.** |
-| `controls/WizardDrawer.tsx:386` | `#101f33` | **DARKER** — phone `CustomDrawerContent.tsx:184-196` = card glass gradient. **DP-2.** |
-| `inputs/AddressAutocomplete.tsx:187` | `#0b1626` | **RESIDUAL** — the typeahead dropdown. Web-only affordance (the phone's address entry is a plain modal on `colors.background`, `EditIncidentLocationModal.tsx:104`, with no suggestion list), so there is no parity mismatch — but it is inside the frame, so D12 applies and it should follow the palette rather than an orphan hex. Same hex as the drawer; fix it in the same pass. |
-| `controls/ExitDialog.tsx:55` | `#0b1626` | **EXEMPT** — `position:fixed`, outside the phone frame; Case-File marketing chrome ("Exploration manifest", mono + `#4ecdc4`), not an app surface. |
-| `PhoneFrame.tsx:123` | `#04060a` | EXEMPT — frame bezel, demo-only. |
-| `screens/MediaCaptureScreen.tsx:99,867,875` · `OcrCaptureScreen.tsx:576,591` · `AudioRecorderScreen.tsx:388` · `AudioPreviewScreen.tsx:110` · `MediaLibrarySheet.tsx:551,562` · `import/PasteStage.tsx:43` | `#05080d` / `#0a1320` | EXEMPT — viewfinder/recorder/terminal chrome, deliberately near-black. |
-| `screens/map/MapScreen.tsx:473` | `#0a1422` | EXEMPT — map container ground; map chrome is always-dark by design (the guard carries 4 always-dark map-chrome rows). |
-| `chrome/PdfPreview.tsx:139,154` | `#11151c` / `#3a3f47` | NO-COUNTERPART — pdf.js viewer chrome; the phone renders PDFs through a native viewer. |
-| `screens/ImportModal.tsx:170` | `#0a1626` | NO-COUNTERPART — the `<pre>` technical-details well inside the import error card. A near-black code block is the idiom, and the phone's import modal has no equivalent raw-JSON disclosure. |
-| `screens/DashboardScreen.tsx:172,209` | `#1a2d44` | NOT A GROUND, but a token residual — a personnel chip and the "+N more" pill. **Lighter** than `colors.background`, so not a dark-ground defect; it is a raw hex with no palette sibling. Flagged, not swept: out of DP-4's scope, worth its own row if the owner wants zero orphan hexes. |
+1. **A retired hex respelled as `rgba()` is invisible to it.** `#0d1b2a` — the retired `background`, `RETIRED[0]` — is `rgb(13,27,42)`, and it is **alive at four sites** in that spelling:
+   `inputs/CoordinateDisplay.tsx:78` `rgba(13,27,42,0.55)` · `screens/ImportResultAccordion.tsx:20` `rgba(13,27,42,0.5)` · `screens/NotesScreen.tsx:422` `rgba(13,27,42,0.7)` · `screens/_shared.tsx:561` `rgba(13,27,42,0.4)`.
+   The needle `#0d1b2a` cannot match the string `rgba(13,27,42,0.55)`. **The sweep's own docblock foresaw exactly this** (`:68-71`): *"The whitespace strip is for the entries that are coming: a retired `rgba(19,34,54,0.85)` must also catch `rgba(19, 34, 54, 0.85)`."* The machinery was built for rgba entries; none was ever added. (Five further `rgba(13,27,42,…)` hits are prose in comments describing what U1.3 replaced — not live values.)
+2. **A demo-ORIGINAL navy has nothing to match against.** `#0b1626`, `#101f33`, `#05080d`, `#0a1320` were never on the phone, so `RETIRED` never listed them and no drift-guard anchor row covers them (that guard compares values existing on *both* sides). Invisible by construction.
 
-**Fix** — Three one-line token swaps, and then make the guard able to see them:
-1. `WizardDrawer.tsx:358` → `colors.background`.
-2. `WizardDrawer.tsx:386` → `GLASS.gradientCard` + `GLASS.borderSoft` + lit top edge (drop `border: 'none'`).
-3. `AddressAutocomplete.tsx:187` → the elevated/card tier rather than the orphan hex.
-4. **Add `#0b1626` and `#101f33` to `RETIRED`** (`palette.test.ts:81`) with their replacements. That is the real fix: the existing sweep then enforces all three sites and any future one, mechanically, and no hand-written colour pin is needed. It also widens `RETIRED` from "hexes the phone retired" to "hexes this design system has replaced", which is what it needed to be for a demo-original value to be catchable at all.
+### The residuals
 
-No existing test pins either hex (swept: zero hits under `features/demo/**/__tests__`), so the fix reddens nothing and the `RETIRED` addition is itself the RED.
+`[V]` = I verified both sides at source. `[S]` = from the sweep, phone side not independently re-checked.
+
+| # | demo | paints | phone counterpart paints | |
+|---|---|---|---|---|
+| 1 | `controls/WizardDrawer.tsx:358` | `#0b1626` | `CustomDrawerContent.tsx:153` `colors.background` `#002853` | **[V] DP-2** |
+| 2 | `controls/WizardDrawer.tsx:386` | `#101f33` | `CustomDrawerContent.tsx:184-196` card glass | **[V] DP-2** |
+| 3 | `inputs/CoordinateDisplay.tsx:78` | `rgba(13,27,42,0.55)` | `CoordinateDisplay.tsx:92,149` `nestedCard` glass | **[V]** retired hex |
+| 4 | `inputs/AddressAutocomplete.tsx:187` | `#0b1626` | `AutocompleteSuggestionList.tsx:77` `colors.background` | **[V]** — corrects this doc's earlier "no counterpart" |
+| 5 | `screens/AudioRecorderScreen.tsx:388` | `#05080d` | `RecorderScreen.tsx:279` `colors.background` | **[V]** |
+| 6 | `screens/OcrCaptureScreen.tsx:576`, `MediaCaptureScreen.tsx:99` | `#05080d` | `CameraScreen.tsx:283` `colors.background` | **[V]** — the phone's camera **ground** is not black; only its overlays are |
+| 7 | `screens/AudioPreviewScreen.tsx:110` | `#05080d` | `Screen.tsx:191` `colors.background` | [S] |
+| 8 | `chrome/PdfPreview.tsx:154` | `#3a3f47` | `documentation/constants.ts:18` `PDF_VIEWER_CHROME = '#525659'` | **[V]** — the phone NAMED this constant to stop drift, and says "Do not tokenise" |
+| 9 | `chrome/PdfPreview.tsx:139` | `#11151c` | `CaseNotesPreviewModal.tsx:189` `colors.background` | [S] |
+| 10 | `screens/ImportResultAccordion.tsx:20` | `rgba(13,27,42,0.5)` | `BatchResultDetails.tsx:125-128` `nestedCard` | [S] retired hex |
+| 11 | `screens/NotesScreen.tsx:422` | `rgba(13,27,42,0.7)` | `NotesSectionEditor.tsx:204` `nestedCard` | [S] retired hex |
+| 12 | `screens/_shared.tsx:561` (`Accordion`) | `rgba(13,27,42,0.4)` | `FormSection.tsx:142-155` — no fill, sits on `colors.background` | [S] retired hex |
+| 13 | `screens/DashboardScreen.tsx:172,209` | `#1a2d44` | `DashboardCaseCard.tsx:146` / `LocationPill.tsx:143` `nestedCard` | [S] |
+| 14 | `screens/AudioRecorderScreen.tsx:486` | `rgba(26,45,68,.6)→rgba(19,34,54,.8)` | `RecordButton.tsx:184` card tier | [S] |
+| 15 | `screens/import/PasteStage.tsx:43` | `#0a1320` | `ImportPickerModal.tsx:731` `colors.backgroundSecondary` | [S] — adjudicate: the import flow has a deliberate terminal aesthetic, so this may be intended |
+| 16 | `screens/map/MapScreen.tsx:473` | `#0a1422` | `MapHost.tsx:489` `colors.background` | [S] — adjudicate against the guard's 4 always-dark map-chrome rows |
+| 17 | `screens/map/MapCanvas.tsx:93` | `linear-gradient(160deg,#002853,#0a1422)` | `MapHost.tsx:489` flat `colors.background` | [S] bottom stop only |
+
+**Known-but-open seam, not a new find:** `screens/_shared.tsx:103` `modalScrim` paints `rgba(4,8,14,0.55)` where `palette.scrim` is `rgba(0,40,83,0.32)`. Its own comment marks it `SEAM(U4.4)` — "one of the three scrim darknesses matrix A22 collapses into `palette[scheme].scrim`… this is the survivor". U4.4 collapsed two of three and left this one. Owner's call whether it closes now.
+
+**Genuinely exempt** (checked): `PhoneFrame.tsx:123` bezel · `ExitDialog.tsx` + `ExploreChecklist.tsx` (render *outside* the phone viewport) · `camera-chrome.ts` scrims and the radial vignettes · `MediaLibrarySheet.tsx:488` `#000` fullscreen viewer. **No counterpart:** `map/CallConfirmSheet.tsx`, `map/DemoNotification.tsx` (phone hands off to OS), `ImportModal.tsx:170` JSON dump, the media letterboxes.
+
+**Fix** — in this order; the guard work is the part that matters:
+1. **Teach the sweep that a hex and its `rgb()`/`rgba()` spelling are the same colour** — normalise `#rrggbb` to `rgb(r,g,b)` on both sides of the match in `palette.test.ts`. The docblock already asked for this, and it makes every current and future `RETIRED` entry catch both spellings automatically. **This is the RED** for rows 3, 10, 11, 12.
+2. **Widen `RETIRED`** to `#0b1626`, `#101f33`, `#05080d`, `#0a1320`, `#1a2d44`, `#11151c`, `#3a3f47` with replacements — i.e. from "hexes the phone retired" to "hexes this design system has replaced", which is what it must be to catch a demo-original value at all. **This is the RED** for the rest.
+3. Then the swaps: rows 1–2 per DP-2; rows 3/10/11/12/13 → `nestedCard`; rows 4/5/6/7/9/16 → `colors.background`; row 8 → `#525659`; row 14 → card tier.
+4. **Adjudicate rows 15–17 and the `modalScrim` seam with the owner before touching them** — each has a documented reason it might be deliberate.
+
+Sized: ~17 sites, but only two guard edits carry the enforcement. No existing test pins any of these values (swept: zero hits under `features/demo/**/__tests__`), so the guard edits are the RED and the swaps are the GREEN.
 
 **Status (DP-4)** — INVESTIGATED
