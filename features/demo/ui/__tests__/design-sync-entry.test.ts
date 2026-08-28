@@ -124,9 +124,13 @@ describe('the design-sync bundle entry (D7 / U8.4)', () => {
         // lib.dom, which the design tool's tsc has.
         'PositionOptions', 'MediaStreamConstraints', 'MediaStream', 'MediaDeviceInfo', 'HTMLCanvasElement',
       ])
+      // `Array.from`, not `[...iterator]`: `tsconfig.json`'s `target` is `es5`, under which
+      // spreading a `RegExpStringIterator` or a `Set` is TS2802. Vitest's transform accepts it
+      // and `pnpm test` stays green, so this only ever reds in the typecheck leg — which is the
+      // whole argument for gating on a cold `tsc` as well as the suite.
       const offenders = bodies.flatMap(([name, body]) => {
-        const names = [...typeText(body).matchAll(/(?<![.\w])([A-Z][A-Za-z0-9_]*)(?!\.)\b/g)].map((m) => m[1])
-        const unknown = [...new Set(names)].filter((n) => !DEFINED.has(n))
+        const names = Array.from(typeText(body).matchAll(/(?<![.\w])([A-Z][A-Za-z0-9_]*)(?!\.)\b/g), (m) => m[1])
+        const unknown = Array.from(new Set(names)).filter((n) => !DEFINED.has(n))
         return unknown.length ? [`${name}: ${unknown.join(', ')}`] : []
       })
       expect(offenders, 'unresolvable type names in the shipped .d.ts contracts').toEqual([])
