@@ -75,11 +75,8 @@ export {
 } from '@/features/demo/engine/logic/coordinates'
 export { assertNever } from '@/features/demo/engine/logic/assert-never'
 export {
-  describeSaveStatus,
-  formatSaveRecency,
   type SaveState,
   type SaveStateKind,
-  type SaveStatusView,
 } from '@/features/demo/engine/logic/save-status'
 export {
   actionsForStatus,

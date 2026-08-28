@@ -24,7 +24,7 @@ export function Filled() {
         }}
         onChange={() => {}}
         onToggleMediaPlayer={() => {}}
-        onNext={() => {}}
+        nextLabel="Next: Notes" onNext={() => {}}
         onBack={() => {}}
         onMenu={() => {}}
       />
@@ -40,7 +40,7 @@ export function Empty() {
         data={{ exportMedia: '', fileType: '', sizeGb: '', mediaPlayerIncluded: false, mediaProvidedVia: '' }}
         onChange={() => {}}
         onToggleMediaPlayer={() => {}}
-        onNext={() => {}}
+        nextLabel="Next: Notes" onNext={() => {}}
         onBack={() => {}}
         onMenu={() => {}}
       />

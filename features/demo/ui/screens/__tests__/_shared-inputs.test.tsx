@@ -38,7 +38,7 @@ describe('screen integration (smoke)', () => {
         onChange={vi.fn()}
         onAdd={vi.fn()}
         onRemove={vi.fn()}
-        onNext={vi.fn()}
+        nextLabel="Next: Test Step" onNext={vi.fn()}
         onBack={vi.fn()}
         onMenu={vi.fn()}
       />,
@@ -54,7 +54,7 @@ describe('screen integration (smoke)', () => {
       numberOfChannels: '', activeCameras: '', recordingSchedule: '', resolution: '', recordingFps: '', firstRecordedDate: '', totalDvrRetention: '',
     }
     const { container } = render(
-      <DvrInfoScreen dvr={dvr} retention={{ totalRetention: null, scopes: [] }} onChange={vi.fn()} isFieldVisible={() => true} onNext={vi.fn()} onBack={vi.fn()} onMenu={vi.fn()} />,
+      <DvrInfoScreen dvr={dvr} retention={{ totalRetention: null, scopes: [] }} onChange={vi.fn()} isFieldVisible={() => true} nextLabel="Next: Test Step" onNext={vi.fn()} onBack={vi.fn()} onMenu={vi.fn()} />,
     )
     expect(container.querySelector('select')).toBeNull()
     expect(screen.getByRole('button', { name: /^Resolution/ })).toBeInTheDocument()
@@ -69,7 +69,7 @@ describe('screen integration (smoke)', () => {
       dvrLocation: '', dvrTypeBrand: '', serialModelNumber: '', dvrUsername: '', dvrPassword: '',
       numberOfChannels: '', activeCameras: '', recordingSchedule: 'continuous', resolution: '', recordingFps: '', firstRecordedDate: '', totalDvrRetention: '',
     }
-    render(<DvrInfoScreen dvr={dvr} retention={{ totalRetention: null, scopes: [] }} onChange={onChange} isFieldVisible={() => true} onNext={vi.fn()} onBack={vi.fn()} onMenu={vi.fn()} />)
+    render(<DvrInfoScreen dvr={dvr} retention={{ totalRetention: null, scopes: [] }} onChange={onChange} isFieldVisible={() => true} nextLabel="Next: Test Step" onNext={vi.fn()} onBack={vi.fn()} onMenu={vi.fn()} />)
     expect(screen.getByRole('checkbox', { name: 'Continuous' })).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByRole('checkbox', { name: 'Motion' })).toHaveAttribute('aria-checked', 'false')
     fireEvent.click(screen.getByRole('checkbox', { name: 'Motion' }))
@@ -87,7 +87,7 @@ describe('screen integration (smoke)', () => {
         dvr={dvr}
         retention={{ totalRetention: 40, scopes: [{ label: 'Scope 1', daysUntilOverwritten: 5, overwrittenDate: '2025-04-17' }] }}
         onChange={vi.fn()}
-        onNext={vi.fn()}
+        nextLabel="Next: Test Step" onNext={vi.fn()}
         onBack={vi.fn()}
         onMenu={vi.fn()}
       />,
@@ -109,7 +109,7 @@ describe('screen integration (smoke)', () => {
         dvr={dvr}
         retention={{ totalRetention: 10, scopes: [{ label: 'Scope 1', daysUntilOverwritten: 0, overwrittenDate: '2025-01-11' }] }}
         onChange={vi.fn()}
-        onNext={vi.fn()}
+        nextLabel="Next: Test Step" onNext={vi.fn()}
         onBack={vi.fn()}
         onMenu={vi.fn()}
       />,

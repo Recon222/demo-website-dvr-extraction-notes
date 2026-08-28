@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useReducedMotion } from 'motion/react'
 import type { CaseCard } from '@/features/demo/ui/screens/screenData'
-import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { GLASS, glassCardNested } from '@/features/demo/ui/glass-tokens'
 import { SettingsGearButton } from '@/features/demo/ui/screens/SettingsGearButton'
 import { EmptyState } from '@/features/demo/ui/controls/EmptyState'
 import { LONG_PRESS_SURFACE_STYLE, useLongPress } from '@/features/demo/ui/primitives/useLongPress'
@@ -169,7 +169,7 @@ function TimelineCase({ card, index, isLast, onOpenLocation, onCaseActions }: Ti
         {card.personnel.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
             {card.personnel.map((p, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: '#1a2d44', borderRadius: 8 }}>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', ...glassCardNested, borderRadius: 8 }}>
                 <span style={{ fontSize: 11, fontWeight: 500, color: '#7a9fc4' }}>{p.role}</span>
                 <span style={{ fontSize: 11, color: '#f0f4f8' }}>{p.name}</span>
                 {/* A89 (U8.2) — the last teal INSIDE the frame, so it follows the palette
@@ -206,7 +206,7 @@ function TimelineCase({ card, index, isLast, onOpenLocation, onCaseActions }: Ti
                 onClick={() => setExpanded((e) => !e)}
                 aria-expanded={expanded}
                 aria-label={`${hidden} more locations`}
-                style={{ padding: '7px 12px', borderRadius: 20, border: 'none', background: '#1a2d44', cursor: 'pointer' }}
+                style={{ padding: '7px 12px', ...glassCardNested, borderRadius: 20, cursor: 'pointer' }}
               >
                 <span style={{ fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace", fontSize: 11, color: '#7a9fc4' }}>+{hidden}</span>
               </button>

@@ -51,7 +51,7 @@ function props(over: Partial<NotesScreenProps> = {}): NotesScreenProps {
     onScrapAll: vi.fn(),
     onRestoreAll: vi.fn(),
     onCommitFreeText: vi.fn(),
-    onNext: vi.fn(),
+    nextLabel: "Next: Test Step", onNext: vi.fn(),
     onBack: vi.fn(),
     onMenu: vi.fn(),
     ...over,

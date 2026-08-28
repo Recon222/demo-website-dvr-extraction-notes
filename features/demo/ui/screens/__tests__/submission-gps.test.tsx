@@ -99,7 +99,7 @@ const submission = (o: SubmissionOptions = {}) => (
     coordinates={o.coordinates}
     onChange={o.onChange ?? vi.fn()}
     onCoordinates={o.onCoordinates ?? vi.fn()}
-    onNext={vi.fn()}
+    nextLabel="Next: Test Step" onNext={vi.fn()}
     onBack={vi.fn()}
     onMenu={vi.fn()}
     gpsDeps={{ geolocation: o.geolocation ?? null, delay: async () => undefined }}

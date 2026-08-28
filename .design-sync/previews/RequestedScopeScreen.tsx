@@ -22,7 +22,7 @@ export function Filled() {
         onChange={() => {}}
         onAdd={() => {}}
         onRemove={() => {}}
-        onNext={() => {}}
+        nextLabel="Next: Arrival/Departure" onNext={() => {}}
         onBack={() => {}}
         onMenu={() => {}}
       />
@@ -41,7 +41,7 @@ export function Single() {
         onChange={() => {}}
         onAdd={() => {}}
         onRemove={() => {}}
-        onNext={() => {}}
+        nextLabel="Next: Arrival/Departure" onNext={() => {}}
         onBack={() => {}}
         onMenu={() => {}}
       />

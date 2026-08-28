@@ -225,7 +225,7 @@ function labelFor(text: string): HTMLElement | null {
   return screen.getAllByText(text).find((el) => el.tagName === 'DIV') ?? null
 }
 
-const nav = { onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn(), isFieldVisible: () => true }
+const nav = { nextLabel: "Next: Test Step", onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn(), isFieldVisible: () => true }
 
 const blankIncident: IncidentLocationValues = {
   businessName: '', streetAddress: '', city: '', latitude: '', longitude: '', coordinateSource: '',

@@ -5,7 +5,7 @@ import type { CSSProperties } from 'react'
 
 import { formatCoordinate } from '@/features/demo/engine/logic/coordinates'
 import { formatAccuracy, getAccuracyRating, gpsSourceLabel, type AccuracyTone } from '@/features/demo/engine/logic/gps'
-import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { GLASS, glassCardNested } from '@/features/demo/ui/glass-tokens'
 import { palette, scheme, type ColorScheme } from '@/features/demo/ui/tokens/palette'
 import type { GpsCoordinates, GpsSource } from '@/features/demo/engine/types'
 
@@ -73,9 +73,11 @@ async function defaultWriteClipboard(text: string): Promise<void> {
 }
 
 const card: CSSProperties = {
-  borderRadius: 12,
-  border: GLASS.border,
-  background: 'rgba(13,27,42,0.55)',
+  // A33/A55 — the nested tier, as U1.3 adopted at its sibling sites. Was `rgba(13,27,42,0.55)`
+  // (the retired navy, in the rgb spelling the hex sweep could not see) on a hard border. The
+  // phone paints this surface from `nestedCard` too (`CoordinateDisplay.tsx:92,149`). Spread
+  // FIRST so nothing below overrides `border`/`borderColor` and erases the lit top edge.
+  ...glassCardNested,
   padding: 12,
   width: '100%',
   textAlign: 'left',

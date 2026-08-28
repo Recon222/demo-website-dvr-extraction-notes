@@ -20,7 +20,7 @@ const callbacks = {
   onScrapAll: noop,
   onRestoreAll: noop,
   onCommitFreeText: noop,
-  onNext: noop,
+  nextLabel: "Next: Completion", onNext: noop,
   onBack: noop,
   onMenu: noop,
 }

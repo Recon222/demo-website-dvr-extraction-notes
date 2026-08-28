@@ -40,7 +40,7 @@ export function Filled() {
           ],
         }}
         onChange={() => {}}
-        onNext={() => {}}
+        nextLabel="Next: Cameras" onNext={() => {}}
         onBack={() => {}}
         onMenu={() => {}}
       />
@@ -56,7 +56,7 @@ export function Empty() {
         dvr={{ ...DVR, firstRecordedDate: '', totalDvrRetention: '', recordingSchedule: '' }}
         retention={{ totalRetention: null, scopes: [] }}
         onChange={() => {}}
-        onNext={() => {}}
+        nextLabel="Next: Cameras" onNext={() => {}}
         onBack={() => {}}
         onMenu={() => {}}
       />

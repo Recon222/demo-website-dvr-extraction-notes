@@ -15,6 +15,8 @@ export interface RequestedScopeScreenProps {
   /** Which of this screen's fields the visitor's form profile keeps (P7.3). */
   isFieldVisible(id: FormFieldId): boolean
   onNext(): void
+  /** Derived CTA copy — see `WizardNext` / `nextCtaLabel`. Never a literal. */
+  nextLabel: string | null
   onBack(): void
   onMenu(): void
 }
@@ -32,7 +34,7 @@ export interface RequestedScopeScreenProps {
  */
 
 /** Requested time ranges (real- or DVR-time) + cameras — the input the time-offset math acts on. */
-export function RequestedScopeScreen({ scopes, onChange, onAdd, onRemove, isFieldVisible, onNext, onBack, onMenu }: RequestedScopeScreenProps) {
+export function RequestedScopeScreen({ scopes, onChange, onAdd, onRemove, isFieldVisible, onNext, nextLabel, onBack, onMenu }: RequestedScopeScreenProps) {
   // Start/End are always-on (the completion gate rejects a scope without them), so only the
   // entry-type switch and the camera list are gated here.
   const showTimeType = isFieldVisible('scope.isActualTime')
@@ -67,7 +69,7 @@ export function RequestedScopeScreen({ scopes, onChange, onAdd, onRemove, isFiel
           </div>
         ))}
         <AddRowButton label="+ Add Scope" onClick={onAdd} />
-        <WizardNext label="Continue →" onClick={onNext} />
+        <WizardNext label={nextLabel} onClick={onNext} />
       </div>
     </div>
   )

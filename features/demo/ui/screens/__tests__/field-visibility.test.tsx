@@ -20,7 +20,7 @@ import type { FormFieldId, FormStepId } from '@/features/demo/engine/types'
  * nothing at all.
  */
 
-const nav = { onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn() }
+const nav = { nextLabel: "Next: Test Step", onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn() }
 const all = () => true
 /** Everything visible except `hidden` — and its group members, which move as one. */
 const allBut = (hidden: FormFieldId) => {

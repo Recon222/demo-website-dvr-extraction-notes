@@ -19,12 +19,14 @@ export interface ArrivalDepartureScreenProps {
   /** Which of this screen's fields the visitor's form profile keeps (P7.3). */
   isFieldVisible(id: FormFieldId): boolean
   onNext(): void
+  /** Derived CTA copy — see `WizardNext` / `nextCtaLabel`. Never a literal. */
+  nextLabel: string | null
   onBack(): void
   onMenu(): void
 }
 
 /** On-site visit arrival/departure pairs (optional chain-of-custody detail). */
-export function ArrivalDepartureScreen({ visits, onChange, onAdd, onRemove, isFieldVisible, onNext, onBack, onMenu }: ArrivalDepartureScreenProps) {
+export function ArrivalDepartureScreen({ visits, onChange, onAdd, onRemove, isFieldVisible, onNext, nextLabel, onBack, onMenu }: ArrivalDepartureScreenProps) {
   const showArrival = isFieldVisible('arrival.arrivalDateTime')
   const showDeparture = isFieldVisible('arrival.departureDateTime')
   return (
@@ -43,7 +45,7 @@ export function ArrivalDepartureScreen({ visits, onChange, onAdd, onRemove, isFi
           </div>
         ))}
         <AddRowButton label="+ Add Visit" onClick={onAdd} />
-        <WizardNext label="Continue →" onClick={onNext} />
+        <WizardNext label={nextLabel} onClick={onNext} />
       </div>
     </div>
   )

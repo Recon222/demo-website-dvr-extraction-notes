@@ -1,6 +1,7 @@
 'use client'
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { glassCardNested } from '@/features/demo/ui/glass-tokens'
 import type { CSSProperties, ReactNode } from 'react'
 import type { NoteSectionId } from '@/features/demo/engine/types'
 import type { NoteSectionMeta } from '@/features/demo/engine/logic/notes'
@@ -43,6 +44,8 @@ export interface NotesScreenProps {
   onRestoreAll(mode: RestoreAllMode): void
   onCommitFreeText(text: string): void
   onNext(): void
+  /** Derived CTA copy — see `WizardNext` / `nextCtaLabel`. Never a literal. */
+  nextLabel: string | null
   onBack(): void
   onMenu(): void
 }
@@ -286,6 +289,7 @@ export function NotesScreen({
   onRestoreAll,
   onCommitFreeText,
   onNext,
+  nextLabel,
   onBack,
   onMenu,
 }: NotesScreenProps) {
@@ -415,8 +419,13 @@ export function NotesScreen({
       <div style={{ padding: 16 }}>
         {/* Terminal-dark editor panel — the page's only scrollable (ui-mapping 08). */}
         <div style={{ borderRadius: 12, border: PANEL_BORDER, background: PANEL_BG, height: 500, overflowY: 'auto', overscrollBehavior: 'contain', padding: 14, marginBottom: 10 }}>
+          {/* A33/A55 — the nested tier. Was `rgba(13,27,42,0.7)` (the retired navy in rgb
+              spelling) on a hand-rolled `rgba(30,58,95,0.6)` hairline — which is the retired
+              `border` hex in the same invisible spelling. The phone paints this advisory from
+              `nestedCard` (`NotesSectionEditor.tsx:204`). Spread FIRST; the radius below is the
+              lifted 10 and stays (demo §0.4). */}
           {allTakenOver && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderRadius: 10, border: '1px solid rgba(30,58,95,0.6)', background: 'rgba(13,27,42,0.7)', padding: '9px 12px', marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, ...glassCardNested, borderRadius: 10, padding: '9px 12px', marginBottom: 16 }}>
               <span style={{ fontSize: 12.5, color: '#a9c2d8' }}>Auto-generation is off — restore anytime</span>
               <button type="button" style={linkBtn} onClick={() => setDialog({ kind: 'restoreAll' })}>
                 Restore
@@ -456,7 +465,7 @@ export function NotesScreen({
             Write my own notes…
           </button>
         </div>
-        <WizardNext label="Continue →" onClick={onNext} />
+        <WizardNext label={nextLabel} onClick={onNext} />
       </div>
       {dialogNode}
     </div>

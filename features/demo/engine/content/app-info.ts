@@ -11,8 +11,13 @@
  * bare "v1.0.0" in a browser tab would claim something untrue.
  */
 
-/** Phone `app.config.js:10` (`name`), and the literal fallback its About section renders. */
-export const APP_NAME = 'DVR Extraction Notes'
+/**
+ * The app's name. Renamed to `DVREN` at DP-3 by owner ruling — the app itself is being renamed,
+ * so this single constant moves and every reader (the drawer footer, the About pane's title and
+ * copyright, the support mailto's subject) follows it. Was `'DVR Extraction Notes'`, which is
+ * still what the phone's `app.config.js:10` reads until the phone rename lands.
+ */
+export const APP_NAME = 'DVREN'
 
 /** Phone `app.config.js:11` (`version`). */
 export const APP_VERSION = '1.0.0'

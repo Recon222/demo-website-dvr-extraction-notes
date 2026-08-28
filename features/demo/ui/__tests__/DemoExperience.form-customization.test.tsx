@@ -133,8 +133,34 @@ describe('the wizard runs on the visible step set', () => {
   it('skips a hidden screen going forward', () => {
     const store = seedInWizard('dvrInfo')
     render(<DemoExperience store={store} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Continue →' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next: Export Information' }))
     expect(store.getState().view).toBe('exportInfo')
+  })
+
+  /**
+   * The CTA names the next VISIBLE step, the phone's `useWizardNav` shape verbatim
+   * (`src/features/form-customization/hooks/useWizardNav.ts:45` — `` `Next: ${next.label}` ``
+   * over `getNextStep`'s visible walk). Two mutations this must kill, and the `canvas` profile
+   * is chosen so that ONE fixture separates them: it hides Cameras, which is DVR Information's
+   * registry neighbour, so a hardcoded label reads "Continue →" and a visibility-blind
+   * derivation reads "Next: Cameras" — neither is what Continue actually does.
+   */
+  it('names the next VISIBLE step on the CTA, not the next registry step', () => {
+    const store = seedInWizard('dvrInfo')
+    render(<DemoExperience store={store} />)
+    expect(screen.getByRole('button', { name: 'Next: Export Information' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Next: Cameras' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Continue →' })).not.toBeInTheDocument()
+  })
+
+  /** The label is single-sourced from the drawer's own row, so the two can never disagree. */
+  it('the CTA name matches the drawer row it points at', () => {
+    const store = seedInWizard('dvrInfo')
+    render(<DemoExperience store={store} />)
+    act(() => store.getState().setDrawerOpen(true))
+    const drawer = screen.getByRole('dialog', { name: 'Navigation' })
+    expect(within(drawer).getByText('Export Information')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next: Export Information' })).toBeInTheDocument()
   })
 
   it('skips it going back too', () => {

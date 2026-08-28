@@ -5,7 +5,6 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { CSSProperties, ReactNode } from 'react'
 import type { AdditiveFormStepId, WizardScreenId } from '@/features/demo/engine/types'
 import { ADDITIVE_FORM_STEP_IDS } from '@/features/demo/engine/types'
-import type { SaveStateKind, SaveStatusView } from '@/features/demo/engine/logic/save-status'
 import { APP_NAME, DEMO_VERSION_LINE } from '@/features/demo/engine/content/app-info'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { drawerTransition, DRAWER_W } from '@/features/demo/ui/motion'
@@ -37,15 +36,6 @@ export interface WizardDrawerProps {
    *  closes: it stays OPEN behind a "No Location" toast when nothing is selected
    *  (`app/(form)/_layout.tsx:334-345`), so this row deliberately does not close it itself. */
   onOpenMediaLibrary(): void
-  /**
-   * The footer's save-status line, already worded by `describeSaveStatus` (the drawer is
-   * presentational — it neither reads the persistence handle nor owns a clock).
-   *
-   * `null` renders NO line, and that is the honest reading of "not sampled yet": the bridge
-   * samples on open, so the value is absent for the first frame of the slide-in. A placeholder
-   * there would be a claim about a state nobody has looked at.
-   */
-  saveStatus: SaveStatusView | null
   /**
    * Which capture TOOLS the visitor's form profile leaves in the accordion (P7.3). The phone
    * gates the same two rows on step visibility (`CustomDrawerContent.tsx:61-62,312,342`); the
@@ -97,29 +87,6 @@ const DOT_GLOW_ALPHA = 0.35
 const DOT: Record<'complete' | 'partial', CSSProperties> = {
   complete: { background: colors.success, boxShadow: `0 0 7px ${withAlpha(colors.success, DOT_GLOW_ALPHA)}` },
   partial: { background: colors.warning, boxShadow: `0 0 7px ${withAlpha(colors.warning, DOT_GLOW_ALPHA)}` },
-}
-
-// ---- Footer chrome --------------------------------------------------------
-
-/**
- * Save-status tone. Redundant with the wording (the text already says which state it is), so
- * this is emphasis, never the carrier — the same rule the completion dots' `aria-label` obeys.
- */
-const SAVE_STATUS_COLOR: Record<SaveStateKind, string> = {
-  // No phone counterpart — session persistence is demo-only, so D12's "follow the palette
-  // inside the frame" applies rather than a lift. The two tokens are the phone's own vocabulary
-  // for exactly these two meanings: `textSecondary` is what `TimerCard.getStatusColor:137` and
-  // `dvr-information.tsx:176`'s Unknown branch both spend for "no severity", and `warning` is
-  // the advisory amber. `#5d7a9a` and `#c9a227` were the last two members of the four-amber /
-  // stray-slate families the U3 exit criterion collapses.
-  //
-  // NOT `colors.error` for `failed`: this is 11px text, and §C.3 rule 1 is that red stops being
-  // a text colour. The wording already says which state it is; this is emphasis, never the
-  // carrier — the same rule the completion dots' `aria-label` obeys.
-  saved: colors.textSecondary,
-  pending: colors.textSecondary,
-  unavailable: colors.warning,
-  failed: colors.warning,
 }
 
 // ---- Media accordion ------------------------------------------------------
@@ -308,7 +275,6 @@ export function WizardDrawer({
   onCaptureMedia,
   onRecordAudio,
   onOpenMediaLibrary,
-  saveStatus,
   mediaTools,
 }: WizardDrawerProps) {
   const reduce = useReducedMotion()
@@ -355,7 +321,11 @@ export function WizardDrawer({
               right: 0,
               zIndex: 42,
               width: DRAWER_W,
-              background: '#0b1626',
+              // Phone `CustomDrawerContent.tsx:153` — `backgroundColor: colors.background`. The
+              // panel is the app's own ground, so the glass rows sit only a shade above it; the
+              // `#0b1626` this replaces was a prototype navy 2.7x darker in relative luminance,
+              // which is what made the rows read as floating on a hole (DP-2).
+              background: colors.background,
               boxShadow: '-24px 0 60px rgba(0,0,0,0.5)',
               display: 'flex',
               flexDirection: 'column',
@@ -383,7 +353,13 @@ export function WizardDrawer({
               <button
                 type="button"
                 onClick={onBackToCases}
-                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderRadius: 10, background: '#101f33', cursor: 'pointer', border: 'none', width: '100%' }}
+                // Phone `CustomDrawerContent.tsx:184-196`: the SAME glass recipe as the step rows
+                // below, and its docblock at `:181-183` records why — it used to paint a single
+                // flat `backgroundColor`, "which read as a hole next to them". The demo was still
+                // in that pre-fix state (`#101f33`, `border: 'none'`). Everything that makes this
+                // control different is deliberate and kept: tighter padding, the arrow, the
+                // divider beneath.
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderRadius: 10, background: GLASS.gradientCard, border: GLASS.borderSoft, cursor: 'pointer', width: '100%' }}
               >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#99badd" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -422,11 +398,6 @@ export function WizardDrawer({
                 (`CustomDrawerContent.tsx:436-440` - `[...gradient].reverse()` plus
                 `borderTopColor`). Not a second gradient: a re-tint of the tier moves both. */}
             <div style={{ padding: '14px 18px', textAlign: 'center', ...glassHeaderFooterBar }}>
-              {saveStatus && (
-                <div data-save-status={saveStatus.kind} style={{ fontSize: 11, marginBottom: 8, color: SAVE_STATUS_COLOR[saveStatus.kind] }}>
-                  {saveStatus.text}
-                </div>
-              )}
               <div style={{ fontSize: 13, fontWeight: 500, color: '#5d7a9a' }}>{APP_NAME}</div>
               {/* The phone renders `v{Constants.expoConfig?.version}` here — this is the same
                   chrome, labelled for what the visitor is actually looking at. The version is

@@ -33,7 +33,7 @@ const base: TimeOffsetScreenProps = {
   onToggleDst: vi.fn(),
   dstAdvisory: null,
   hasExtractedScopes: false,
-  onNext: vi.fn(),
+  nextLabel: "Next: Test Step", onNext: vi.fn(),
   onBack: vi.fn(),
   onMenu: vi.fn(),
 }

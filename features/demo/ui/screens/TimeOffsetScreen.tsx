@@ -42,6 +42,8 @@ export interface TimeOffsetScreenProps {
   /** True when a recalculation would overwrite generated/edited extracted scopes. */
   hasExtractedScopes: boolean
   onNext(): void
+  /** Derived CTA copy — see `WizardNext` / `nextCtaLabel`. Never a literal. */
+  nextLabel: string | null
   onBack(): void
   onMenu(): void
 }
@@ -172,7 +174,7 @@ export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
         )}
 
         <div style={{ marginTop: 14 }}>
-          <WizardNext label="Continue →" onClick={p.onNext} />
+          <WizardNext label={p.nextLabel} onClick={p.onNext} />
         </div>
       </div>
 

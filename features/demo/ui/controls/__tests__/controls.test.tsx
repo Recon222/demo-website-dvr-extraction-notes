@@ -107,7 +107,6 @@ describe('WizardDrawer', () => {
     onCaptureMedia: vi.fn(),
     onRecordAudio: vi.fn(),
     onOpenMediaLibrary: vi.fn(),
-    saveStatus: null,
     // Both capture tools in the flow — the forensic default. The P7.3 gating has its own arm.
     mediaTools: { mediaCapture: true, audioRecording: true },
   })
@@ -158,19 +157,14 @@ describe('WizardDrawer', () => {
     expect(screen.getByRole('button', { name: 'DVR' })).toBeInTheDocument() // no status → label only
   })
 
-  it('renders no save-status line until one is sampled, then renders exactly what it is given', () => {
-    // `null` is "not sampled yet" (the bridge samples on open), and the honest rendering of
-    // that is NOTHING — a placeholder would be a claim about a state nobody has read.
-    const { rerender, container } = render(<WizardDrawer open items={items} {...cb()} />)
+  it('renders the phone footer: the app name over the version line, and nothing else (DP-3)', () => {
+    // The phone's drawer footer is two centred Texts — `DVR Extraction Notes` over
+    // `v{version}` (`CustomDrawerContent.tsx:452-457`). The demo's save-status line had no
+    // counterpart there and was removed at DP-3; this pins that it stays gone.
+    const { container } = render(<WizardDrawer open items={items} {...cb()} />)
     expect(container.querySelector('[data-save-status]')).toBeNull()
-
-    rerender(
-      <WizardDrawer open items={items} {...cb()} saveStatus={{ kind: 'unavailable', text: 'Not saved · x' }} />,
-    )
-    const line = container.querySelector('[data-save-status]')
-    expect(line).toHaveAttribute('data-save-status', 'unavailable')
-    // Presentational: the drawer never words the status itself.
-    expect(line).toHaveTextContent('Not saved · x')
+    expect(screen.getByText('DVREN')).toBeInTheDocument()
+    expect(screen.getByText('Interactive demo · v1.0.0')).toBeInTheDocument()
   })
 
   /**

@@ -3,6 +3,7 @@ import { render, screen, fireEvent, within } from '@testing-library/react'
 import { BRIDGE_PANE_IDS, isBridgePaneId, renderSettingsPane, SETTINGS_PANES, type StubPaneId } from '@/features/demo/ui/screens/settings/panes'
 import { SETTINGS_CATEGORY_IDS } from '@/features/demo/engine/content/settings-catalog'
 import { DEFAULT_SETTINGS, type DemoSettings } from '@/features/demo/engine/content/settings-values'
+import { APP_NAME } from '@/features/demo/engine/content/app-info'
 import { clock } from '@/features/demo/ui/inputs/clock'
 
 /**
@@ -413,7 +414,7 @@ describe('Cloud Sync pane', () => {
 describe('About pane', () => {
   it('reports the demo’s own build facts, not the phone’s', () => {
     renderPane('about')
-    expect(screen.getByText('DVR Extraction Notes')).toBeInTheDocument()
+    expect(screen.getByText(APP_NAME)).toBeInTheDocument()
     expect(screen.getByText('Version 1.0.0')).toBeInTheDocument()
     expect(screen.getByText('Web (browser)')).toBeInTheDocument()
     expect(screen.getByText('Interactive demo')).toBeInTheDocument()
@@ -435,14 +436,14 @@ describe('About pane', () => {
     const link = screen.getByTestId('about-contact-support')
     expect(link).toHaveAttribute(
       'href',
-      `mailto:kcfva.dev@gmail.com?subject=${encodeURIComponent('DVR Extraction Notes v1.0.0 demo - Support Request')}`,
+      `mailto:kcfva.dev@gmail.com?subject=${encodeURIComponent(`${APP_NAME} v1.0.0 demo - Support Request`)}`,
     )
   })
 
   it('takes the copyright year through the injectable clock, not an ambient Date', () => {
     vi.spyOn(clock, 'now').mockReturnValue(new Date('2031-04-02T10:00:00Z'))
     renderPane('about')
-    expect(screen.getByText(/© 2031 DVR Extraction Notes/)).toBeInTheDocument()
+    expect(screen.getByText(new RegExp(`© 2031 ${APP_NAME}`))).toBeInTheDocument()
   })
 })
 

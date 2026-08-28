@@ -199,7 +199,6 @@ describe('the version line is ONE colour across the two chromes that render it',
         open
         items={[]}
         mediaTools={{ mediaCapture: false, audioRecording: false }}
-        saveStatus={null}
         onCaptureMedia={vi.fn()}
         onRecordAudio={vi.fn()}
         onOpenMediaLibrary={vi.fn()}

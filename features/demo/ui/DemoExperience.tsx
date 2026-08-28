@@ -75,7 +75,7 @@ import { renderSettingsPane } from '@/features/demo/ui/screens/settings/panes'
 import { UserProfilePane } from '@/features/demo/ui/screens/settings/panes/UserProfilePane'
 import { FormFieldsPane } from '@/features/demo/ui/screens/settings/panes/FormFieldsPane'
 import { PROFILE_LABELS } from '@/features/demo/engine/content/profiles'
-import { nextVisibleChapter, prevVisibleChapter, resolveFieldVisible, resolveStepVisible } from '@/features/demo/engine/logic/form-visibility'
+import { nextCtaLabel, nextVisibleChapter, prevVisibleChapter, resolveFieldVisible, resolveStepVisible } from '@/features/demo/engine/logic/form-visibility'
 import { DEFAULT_SETTINGS, type DemoSettings } from '@/features/demo/engine/content/settings-values'
 import { CaseMapPicker } from '@/features/demo/ui/screens/map/CaseMapPicker'
 import { toMapData } from '@/features/demo/ui/screens/map/mapData'
@@ -154,7 +154,7 @@ import { buildRetentionView, type RetentionView } from '@/features/demo/engine/l
 import { importLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
 import { clock } from '@/features/demo/ui/inputs/clock'
 import { saveTextFile } from '@/features/demo/ui/inputs/download-file'
-import { describeSaveStatus, type SaveStateKind, type SaveStatusView } from '@/features/demo/engine/logic/save-status'
+import type { SaveStateKind } from '@/features/demo/engine/logic/save-status'
 import { toCaseCards, toCaseSheet } from '@/features/demo/ui/screens/screenData'
 import type { CameraEntry, CaseStatus, DuplicateMode, FormFieldId, FormStepId, MediaItem, MediaKind, NoteSectionId, OcrProof, Profile, ScopeEntry, UserProfile } from '@/features/demo/engine/types'
 import '@/features/demo/ui/demo.css'
@@ -649,28 +649,10 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
     }
   }, [injectedStore, store])
 
-  /**
-   * The drawer footer's save-status line (P4.2, matrix row 80).
-   *
-   * Sampled when the drawer OPENS, not continuously: the fact lives on the persistence handle
-   * (a ref, deliberately — R-2's "read it when you're about to make a claim, never capture it
-   * at mount"), and a status line is exactly such a claim. `flush()` first, so a write still
-   * inside its 250ms debounce lands before we describe it — otherwise a visitor who types and
-   * immediately opens the menu is told the age of the write BEFORE theirs.
-   *
-   * Cleared on close so the next open can never show a stale reading. A missing handle counts
-   * as `unavailable` — same rule as `saveProgress`: never assume a wired handle.
-   */
-  const [saveStatus, setSaveStatus] = useState<SaveStatusView | null>(null)
-  useEffect(() => {
-    if (!drawerOpen) {
-      setSaveStatus(null)
-      return
-    }
-    const handle = persistenceRef.current
-    handle?.flush()
-    setSaveStatus(describeSaveStatus(handle?.saveState() ?? { kind: 'unavailable' }, clock.now().getTime()))
-  }, [drawerOpen])
+  // The drawer footer's save-status line was removed at DP-3 (owner ruling): the phone's drawer
+  // footer carries only the app name and version, and the demo's line had no counterpart there
+  // — it was an original, and ledger §59d's "sampled per open, never ticks" caveat retires with
+  // it. `describeSaveStatus` went too; `SaveState` stays, since `store/persistence.ts` owns it.
 
   // Rail copy, most-specific first (mirrors the manifest anchor in selectExploreStatus):
   // an open modal shows its own copy (Create a Case / Add a Location / Import Location),
@@ -1286,6 +1268,13 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
     const n = nextVisibleChapter(currentChapter, store.getState())
     if (n) store.getState().setView(n)
   }
+  /**
+   * The wizard CTA's copy, derived from the SAME visible walk `onNext` takes — so the button can
+   * never name a screen Continue does not go to. Read through `getState()` like every other
+   * visibility closure here (`isFormFieldVisible`, `:768`): `profile` and `formOverrides` are
+   * subscribed above, so a Settings toggle re-renders the bridge and this recomputes with it.
+   */
+  const nextLabel = nextCtaLabel(currentChapter, store.getState())
   const onPrev = () => {
     const p = prevVisibleChapter(currentChapter, store.getState())
     if (p) store.getState().setView(p)
@@ -2547,6 +2536,7 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
             onChange={(f, v) => store.getState().updateField(f, v)}
             onCoordinates={(c) => store.getState().updateField('gps', { lat: c.lat, lng: c.lng, accuracyM: c.accuracyM, source: c.source })}
             onNext={onNext}
+            nextLabel={nextLabel}
             onBack={onPrev}
             onMenu={openMenu}
           />
@@ -2563,6 +2553,7 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
             onAdd={() => sc.add(blankScope())}
             onRemove={sc.remove}
             onNext={onNext}
+            nextLabel={nextLabel}
             onBack={onPrev}
             onMenu={openMenu}
           />
@@ -2579,6 +2570,7 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
             onAdd={() => v.add(blankVisit())}
             onRemove={v.remove}
             onNext={onNext}
+            nextLabel={nextLabel}
             onBack={onPrev}
             onMenu={openMenu}
           />
@@ -2607,6 +2599,7 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
             dstAdvisory={dstAdvisory}
             hasExtractedScopes={(currentLocation?.form.extractedScopes.length ?? 0) > 0}
             onNext={onNext}
+            nextLabel={nextLabel}
             onBack={onPrev}
             onMenu={openMenu}
           />
@@ -2646,13 +2639,14 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
             onRemove={ex.remove}
             onRegenerate={() => store.getState().generateExtractedScopes()}
             onNext={onNext}
+            nextLabel={nextLabel}
             onBack={onPrev}
             onMenu={openMenu}
           />
         )
       }
       case 'dvrInfo':
-        return <DvrInfoScreen dvr={currentLocation?.form.dvr ?? EMPTY_FORM.dvr} retention={retentionView} onChange={(f, v) => store.getState().updateField(`form.dvr.${f}`, v)} isFieldVisible={isFormFieldVisible} onNext={onNext} onBack={onPrev} onMenu={openMenu} />
+        return <DvrInfoScreen dvr={currentLocation?.form.dvr ?? EMPTY_FORM.dvr} retention={retentionView} onChange={(f, v) => store.getState().updateField(`form.dvr.${f}`, v)} isFieldVisible={isFormFieldVisible} onNext={onNext} nextLabel={nextLabel} onBack={onPrev} onMenu={openMenu} />
       case 'cameras': {
         const cams = currentLocation?.form.cameras ?? []
         const cam = formList(cams, 'form.cameras')
@@ -2671,6 +2665,7 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
             // gone (the R-1/R-32 identity discipline, applied to a dynamic row list).
             onCaptureGps={(cameraId, gps) => store.getState().setCameraGps(cameraId, gps)}
             onNext={onNext}
+            nextLabel={nextLabel}
             onBack={onPrev}
             onMenu={openMenu}
           />
@@ -2684,6 +2679,7 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
             onChange={(f, v) => store.getState().updateField(`form.export.${f}`, v)}
             onToggleMediaPlayer={() => store.getState().updateField('form.export.mediaPlayerIncluded', !currentLocation?.form.export.mediaPlayerIncluded)}
             onNext={onNext}
+            nextLabel={nextLabel}
             onBack={onPrev}
             onMenu={openMenu}
           />
@@ -2703,6 +2699,7 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
             onRestoreAll={restoreAllNotes}
             onCommitFreeText={commitNotesFreeText}
             onNext={onNext}
+            nextLabel={nextLabel}
             onBack={onPrev}
             onMenu={openMenu}
           />
@@ -3058,7 +3055,6 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
             onCaptureMedia={launchMediaCapture}
             onRecordAudio={launchAudioRecording}
             onOpenMediaLibrary={openMediaLibrary}
-            saveStatus={saveStatus}
             mediaTools={selectMediaToolsVisible(store.getState())}
           />
           {/* The dashboard's long-press sheet (P3.2). Mounted only while a case is open —

@@ -269,7 +269,7 @@ describe('photo-quality helpers (phone slider write path)', () => {
 
 describe('app-info', () => {
   it('mirrors the phone’s name/version and builds the demo’s own version line', () => {
-    expect(APP_NAME).toBe('DVR Extraction Notes')
+    expect(APP_NAME).toBe('DVREN')
     expect(APP_VERSION).toBe('1.0.0')
     expect(DEMO_VERSION_LINE).toBe('Interactive demo · v1.0.0')
   })

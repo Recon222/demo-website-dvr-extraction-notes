@@ -34,7 +34,6 @@ export function Open() {
         onRecordAudio={() => {}}
         /* The save indicator. `null` is "nothing to report"; the four `kind`s are
            unavailable / pending / saved / failed. */
-        saveStatus={{ kind: 'saved' as const, text: 'Saved to this browser' }}
       />
     </div>
   )

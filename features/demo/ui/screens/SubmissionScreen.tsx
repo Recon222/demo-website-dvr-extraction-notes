@@ -62,6 +62,8 @@ export interface SubmissionScreenProps {
    *  components are always-on, so they carry no gate; everything else on the screen does. */
   isFieldVisible(id: FormFieldId): boolean
   onNext(): void
+  /** Derived CTA copy — see `WizardNext` / `nextCtaLabel`. Never a literal. */
+  nextLabel: string | null
   onBack(): void
   onMenu(): void
   /** Test seams, forwarded to the GPS capture + reverse-geocode I/O. */
@@ -97,6 +99,7 @@ export function SubmissionScreen({
   onChange,
   onCoordinates,
   onNext,
+  nextLabel,
   onBack,
   onMenu,
   gpsDeps,
@@ -166,7 +169,7 @@ export function SubmissionScreen({
           {isFieldVisible('submission.locationContact') && <Field label={COPY.contactPerson} value={fields.locationContact} onChange={(v) => onChange('locationContact', v)} placeholder={COPY.contactPlaceholder} />}
           {isFieldVisible('submission.locationPhone') && <Field label={COPY.contactPhone} value={fields.locationPhone} onChange={(v) => onChange('locationPhone', v)} placeholder={COPY.contactPlaceholder} />}
         </SectionCard>
-        <WizardNext label="Next: Requested Scope" onClick={onNext} />
+        <WizardNext label={nextLabel} onClick={onNext} />
       </div>
     </div>
   )

@@ -14,11 +14,13 @@ export interface ExportInfoScreenProps {
   /** Which of this screen's fields the visitor's form profile keeps (P7.3). */
   isFieldVisible(id: FormFieldId): boolean
   onNext(): void
+  /** Derived CTA copy — see `WizardNext` / `nextCtaLabel`. Never a literal. */
+  nextLabel: string | null
   onBack(): void
   onMenu(): void
 }
 
-export function ExportInfoScreen({ data, onChange, onToggleMediaPlayer, isFieldVisible, onNext, onBack, onMenu }: ExportInfoScreenProps) {
+export function ExportInfoScreen({ data, onChange, onToggleMediaPlayer, isFieldVisible, onNext, nextLabel, onBack, onMenu }: ExportInfoScreenProps) {
   // Every field on this screen is optional, so the whole card can empty out — at which point
   // the store's cascade has already hidden the screen and the visitor never reaches this render.
   return (
@@ -34,7 +36,7 @@ export function ExportInfoScreen({ data, onChange, onToggleMediaPlayer, isFieldV
           {isFieldVisible('export.mediaProvidedVia') && <SelectField label="Provided Via" value={data.mediaProvidedVia} onChange={(v) => onChange('mediaProvidedVia', v)} options={MEDIA_PROVIDED_OPTIONS} />}
           {isFieldVisible('export.mediaPlayerIncluded') && <Toggle label="Media player included" on={data.mediaPlayerIncluded} onClick={onToggleMediaPlayer} />}
         </SectionCard>
-        <WizardNext label="Continue →" onClick={onNext} />
+        <WizardNext label={nextLabel} onClick={onNext} />
       </div>
     </div>
   )

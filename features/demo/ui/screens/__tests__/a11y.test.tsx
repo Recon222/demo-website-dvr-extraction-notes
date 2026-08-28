@@ -20,7 +20,7 @@ const toBase = {
   onToggleDst: vi.fn(),
   dstAdvisory: null,
   hasExtractedScopes: false,
-  onNext: vi.fn(),
+  nextLabel: "Next: Test Step", onNext: vi.fn(),
   onBack: vi.fn(),
   onMenu: vi.fn(),
 }
@@ -72,7 +72,6 @@ describe('WizardDrawer a11y', () => {
         onCaptureMedia={vi.fn()}
         onRecordAudio={vi.fn()}
         onOpenMediaLibrary={vi.fn()}
-        saveStatus={null}
         mediaTools={{ mediaCapture: true, audioRecording: true }}
       />,
     )
