@@ -10,8 +10,9 @@ import {
 import { withAlpha } from '@/features/demo/ui/tokens/scale'
 
 /** The HUD's three branches, aliased to the engine's `BootHudState` so the NAME cannot drift —
- *  that is all an alias buys (review R-9). What closes the branch set is `statusBody` below. The
- *  alias name stays for the callers that already use it. */
+ *  that is all an alias buys (review R-9). What closes the branch set is the total records over
+ *  it — `statusBody` below, and U8.1's `SCANNER_COLORS`. The alias name stays for the callers
+ *  that already use it. */
 export type AuthState = BootHudState
 
 export interface SplashScreenProps {
@@ -65,9 +66,12 @@ export function SplashScreen({ authState, onScan, reduceMotion = false }: Splash
    * These were three independent `&&` blocks, so a fourth `BootHudState` rendered an EMPTY live
    * region under an `aria-disabled` dead button: worse than a wrong default, and silent.
    *
-   * This record is what stops that, and it is the ONLY thing that stops it — the engine's
-   * `HUD_STATE` is keyed by `BootPhase`, so growing `BootHudState` leaves it green. Probed while
-   * fixing R-9: adding a member yields exactly one `TS2741`, here.
+   * This record is what stops that. It is no longer the ONLY thing that stops it, and the
+   * "exactly one `TS2741`" this comment used to claim is stale: U8.1's `SCANNER_COLORS` is a
+   * second total record over the same union, so a fourth member now reds in five places across
+   * three modules (the list is in `engine/logic/boot.ts`'s `BOOT_HUD_STATES` docblock, which is
+   * where the union lives and the only place worth keeping it). The `TS2741` here is one of
+   * them, and no longer the first a compiler reports.
    */
   const statusBody: Record<AuthState, ReactNode> = {
     idle: <div style={{ ...status, color: hud.text }}>TAP TO SCAN</div>,

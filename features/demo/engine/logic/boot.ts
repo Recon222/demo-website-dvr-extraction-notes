@@ -41,9 +41,22 @@ export type BootPhase = 'idle' | 'scanning' | 'authorized' | 'video' | 'holding'
  * comment here used to claim the alias stopped the two from drifting at all (review R-9, the
  * §84a shape). What actually closes the BRANCH SET is one total record, and it is not in this
  * file: `HUD_STATE` below is keyed by `BootPhase`, so growing THIS union leaves it untouched.
- * `SplashScreen`'s `statusBody` is `Record<BootHudState, ReactNode>` and is the only thing that
- * turns a fourth member into a compile error — verified by probe: adding one yields exactly one
- * `TS2741`, there.
+ * `SplashScreen`'s `statusBody` is `Record<BootHudState, ReactNode>` and WAS the only thing that
+ * turned a fourth member into a compile error. U8.1 added a second total record over this union
+ * (`SCANNER_COLORS`, `ui/screens/scanner-hud-colors.ts`), so "the only thing" and "exactly one
+ * `TS2741`" are both stale. Re-probed at the W4 head by adding a `'failed'` member: **five
+ * diagnostics across three modules**, and the first one a compiler reports is no longer the
+ * `TS2741` this comment named.
+ *
+ *   scanner-hud-colors.ts:104   TS1360  `SCANNER_COLORS` no longer satisfies the Record
+ *   SplashScreen.tsx:61         TS7053  indexing `SCANNER_COLORS[authState]`
+ *   SplashScreen.tsx:72         TS2741  `statusBody` is missing the new key
+ *   SplashScreen.test.tsx:90    TS7053  the A87 text sweep indexes the same record
+ *   SplashScreen.test.tsx:104   TS7053  the A87 bracket sweep, likewise
+ *
+ * What the union still guarantees is the property, not the count: **a fourth member cannot be
+ * added silently.** Do not re-state a diagnostic count here — the next total record over this
+ * union moves it again, and a stale count reads as a verified fact.
  */
 export const BOOT_HUD_STATES = ['idle', 'scanning', 'authorized'] as const
 export type BootHudState = (typeof BOOT_HUD_STATES)[number]
