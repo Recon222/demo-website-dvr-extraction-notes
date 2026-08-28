@@ -6792,3 +6792,15 @@ the value first; **U3.2** for the status quartet. Observable violation: a diff t
 **Why deferred:** a faithful encoding needs an emitter that can wrap non-interface contracts (type aliases / unions), which is design-tool toolchain work outside this repo; the notices are the honest mitigation and were verified at the shipped contracts.
 
 **Trigger:** **the first post-campaign change to the design-sync toolchain, or the design tool consuming typed contracts directly** — whichever first; that change replaces both notices with faithful encodings and strikes this row.
+
+---
+
+## 126. Post-campaign (light flip `a60046f`) — the light recessed well's lower stop measures ΔE 2.50 vs `backgroundSecondary`, under row 33's 3.0 per-stop floor — an INHERITED phone value, parked at the site
+
+**Source:** W4/F85 triage §2 (the manifest's D1 objector — deferral proposed there, row landing now that its "the day light opens" trigger has FIRED with the owner's flip); live at `features/demo/ui/__tests__/glass-well-recipe.test.tsx:221` (`it.skipIf` parking the light arm, with the measurement and reasoning in-code).
+
+**What:** `GLASS_TIER.light.recessed.gradient[1]` vs `backgroundSecondary` is ΔE **2.50** — the well reads nearly flat against its own panel in light. Phone-verbatim (`tokens/glass-tiers.ts:114` citing phone `Colors.ts:339`): inherited, not introduced. The floor is NOT weakened — the dark arm stays pinned at 3.0; only the light arm is parked, by name.
+
+**Why deferred:** the honest fix is a phone-side re-tint of `recessed.light`; a web-side divergence would break D2/§9-clause-12 discipline (the demo mirrors the phone's records exactly, both halves).
+
+**Trigger:** **the phone re-tints `recessed.light`** (un-park the arm in the same commit that mirrors it) — or, now that the owner sees light daily, **any owner ruling on the light look** that covers the recessed tier. Observable: the phone's `Colors.ts` recessed light gradient moving, or the skipIf's condition going false.
