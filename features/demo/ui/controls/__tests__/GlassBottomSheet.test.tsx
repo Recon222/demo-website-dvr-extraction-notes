@@ -31,6 +31,9 @@ import {
  * (`docs/planning/demo-phone-parity/HANDOFF.md:5`).
  */
 
+/** jsdom re-spaces `rgba()` on the way back out of the CSSOM. Same shape as `CentredDialog.test.tsx:46`. */
+const norm = (s: string): string => s.toLowerCase().replace(/\s+/g, '')
+
 const realMatchMedia = window.matchMedia
 function preferReducedMotion() {
   window.matchMedia = ((query: string) => ({
@@ -518,8 +521,12 @@ describe('GlassBottomSheet — the five sheet-chrome fragments reach the DOM (W2
     expect(el.style.zIndex).toBe(String(PICKER_SHEET_Z + 1))
     expect(el.style.maxHeight).toBe('90%')
     expect(el.style.overflow).toBe('hidden')
-    expect(el.style.borderTopColor).toBe('rgba(184, 212, 240, 0.14)')
-    expect(el.style.borderRightColor).toBe('rgba(28, 78, 132, 0.6)')
+    // W4/F85: read the edges off the FRAGMENT, not off a hand-spelled dark string. What this
+    // cell asserts is that the shell's four keys did not erase the sheet tier's ground and lit
+    // edge underneath them — a relationship, and one that holds in either scheme. jsdom re-spaces
+    // the tier's unspaced `rgba()`, hence `norm` on both sides.
+    expect(norm(el.style.borderTopColor)).toBe(norm(String(sheetSurface.borderTopColor)))
+    expect(norm(el.style.borderRightColor)).toBe(norm(String(sheetSurface.borderRightColor)))
   })
 })
 
