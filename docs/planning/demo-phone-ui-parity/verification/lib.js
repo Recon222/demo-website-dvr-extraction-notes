@@ -86,6 +86,21 @@ async function open({ headless = true, slowMo = 0, camera = 'fake', motion = 're
     });
   }
 
+  // SCHEME=light|dark drives the Appearance pane's Dark Mode switch WITHOUT clicking it.
+  // The demo reads its scheme once per page load from sessionStorage (`tokens/palette.ts`
+  // SEAM(LM1)) and `setScheme` applies a change by reloading; seeding the key in an init
+  // script puts the choice in place BEFORE the first evaluation, so every driver in this
+  // directory captures either scheme by env var alone. Unset = the demo's own default, dark.
+  if (process.env.SCHEME) {
+    await context.addInitScript((s) => {
+      try {
+        sessionStorage.setItem('dvr-demo-scheme', s);
+      } catch {
+        /* storage-blocked context: the demo falls back to dark, same as a real visitor */
+      }
+    }, process.env.SCHEME);
+  }
+
   const page = await context.newPage();
   page.on('console', (m) => {
     if (m.type() === 'error') console.log('  [browser error]', m.text());
