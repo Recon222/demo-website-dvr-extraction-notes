@@ -1,5 +1,104 @@
 # Lane: tests — W4
 
+## Round 2 (riders)
+
+**Head:** `feat/uiparity-w4` @ `a7d4215` · **Rider diff read:** `277564c..a7d4215` · **Scope:** my own
+HIGH (**F90**) plus the two housekeeping checks the brief names; one out-of-lane paragraph on **F83'**
+because the ts lane's file carries no round-2 section for it yet.
+
+**Cold gates, my own probe worktree** (`probe-w4r2-tests` @ `a7d4215`): `vitest run` →
+**310 files / 4,335 passed | 2 todo (4,337), exit 0** · `pnpm typecheck` → **exit 0**. Every mutation
+on the canonical source in my own worktree; verdicts from exit codes; restore proven after each probe
+and at the end (`git diff a7d4215 --stat` empty, both gates re-green).
+
+### F90 — **FIXED**
+
+`c081a51` gates row 49's inversion relation to `if (activeScheme === 'dark')` and adds it to the
+manifest's §3 deliberate-dark list. Three things had to hold and all three do.
+
+**1. The flip, replicated by me at the MERGED head** (`palette.ts:261` `'dark'` → `'light'`, one line,
+throwaway worktree, never committed):
+
+```
+FLIP_TYPECHECK_EXIT=0        (tsc --noEmit && tsc -p tsconfig.previews.json, 0 errors)
+FLIP_SUITE_EXIT=1
+ Test Files  2 failed | 308 passed (310)
+      Tests  2 failed | 4333 passed | 2 todo (4337)
+FAIL  features/demo/ui/__tests__/glass-well-recipe.test.tsx        (D1)
+FAIL  features/demo/ui/controls/__tests__/CentredDialog.test.tsx   (O1)
+```
+
+**Exactly the manifest's two objectors, no more** — and the counts match its re-cut table
+(`2 failed | 4333 passed | 2 todo (4337)`) line for line. `palette-contrast.test.ts` is gone from the
+set. My r1 HIGH is closed at the SHA that ships.
+
+**2. The SHA stamp covers everything the flip measures — verified, not accepted.** The manifest now
+stamps `c081a51` and argues that later commits touch only itself. I checked the claim the same way I
+caught the r1 defect: `git merge-base --is-ancestor <c> c081a51` for every commit in the rider range —
+`5274aef` (F83', which edits `gen-dts-props.mjs`, `config.json` **and** `design-sync-entry.test.ts`,
+i.e. real test-program files) → **YES**; `1a58a48`, `d52af73` → **YES**; only `bb26314`, the manifest
+write-up itself, is **NO**. And `git diff c081a51..a7d4215 --stat` is **one file, the manifest**. So the
+stamp is honest and the parallel-branch hole that produced F90 is closed for this round. The document
+also now carries the general rule ("evidence is stale the moment a parallel branch lands… must be
+re-run like a gate, not quoted like a conclusion") with the `merge-base` evidence from my finding — the
+lesson is written down where the next reader needs it, not just applied once.
+
+**3. The gate did not kill the pin.** All three r1/r2 probes under the shipped dark scheme, scoped to
+`palette-contrast.test.ts` (62 cases):
+
+| probe | mutation | verdict |
+|---|---|---|
+| **Y1** (r1, re-run) | `TAB_ACTIVE_TINT` → `colors.border` — the ratio collapses | **KILLED**, `expected 1.38 to be greater than or equal to 3` |
+| **Y2** (r1, re-run) | `TAB_ACTIVE_TINT` → `colors.textSecondary` — ratio still clears 3.0, the selection cue vanishes | **KILLED**, `expected '#99badd' to be '#2B8CC1'` |
+| **Y5** (new — isolates the GATED line) | `palette.dark.primary` → `#bcd8ee`: the inversion ENDS while **both** tints still clear the floor and both AT-THE-CONSTANT pins stay green | **KILLED**, `expected 7.92 to be less than 5.82` — the gated relation, and only it |
+
+Y5 is the one that matters, and it took two attempts to construct honestly: **Y4** (dimming
+`palette.dark.textSecondary`) also reds row 49, but on the *floor* assertion (`expected 1.75 to be
+greater than or equal to 3`), because on this bar's fill any downward move big enough to end the
+inversion also breaches the floor — the floor is the tighter guard in that direction. Moving `primary`
+*up* is the only direction where the relation is the sole guard, and there it bites. So the gate
+narrowed **where** the assertion runs without weakening **what** it catches, which is exactly the
+distinction the fix commit claims and the reason gating beat deleting or downgrading it to the
+`not.toBe` two lines above (that one compares tokens; this one compares measured ratios, which is the
+finding).
+
+### Housekeeping
+
+**Both r1 probe worktrees are gone.** `git worktree list | grep -i probe` returned **NONE** before I
+cut mine — `f85-screens-probe` and `probe-u8.4-lightflip` (the tree the stale manifest was measured in)
+are both torn down, and mine is torn down now: `unlinked 549 junction(s) in 2 pass(es)` · `.pnpm`
+240 → 240 · exit 0 · branch deleted · `git worktree list` carries no `probe-*` row. The r1 out-of-lane
+observation is discharged.
+
+### Out of lane — F83' (one paragraph, because `lane-typescript.md` has no round-2 section yet)
+
+`5274aef` extends the KNOWN-LOSSY notice to the erased generic signature and — the part worth
+recording — **names only the DEPENDENT parameter**, not the type parameter itself: erasing `field: K`
+to `keyof Fields` yields exactly the valid key set and is lossless, while `value: Fields[K]` collapses
+fourteen per-key types into one union and is where R-13's typo class re-enters. The commit says its
+first cut named `field` too and that this "would point the reader at the half that is fine" — a
+correction in the right direction, and the predicate (`mentionsTypeParam(declared) &&
+!declared.isTypeParameter()`) encodes precisely that distinction. **Probed, in my lane's terms:** the
+new gate at `design-sync-entry.test.ts` asserts the committed contract text contains
+`generic signature erased` and `value is the WIDENED union`; rewriting that phrase in `config.json`
+→ **KILLED** (1 failed / 45 passed), so the gate pins the shipped artifact rather than the generator's
+behaviour. Removing the detection from `gen-dts-props.mjs` instead leaves the gate green but makes the
+**generator exit 1**, which is the correct division: the artifact is gated by the suite, the emitter by
+its own run. I have no test-lane objection; the encoding judgement remains the ts lane's.
+
+## Tests Summary (Round 2 riders)
+CRITICAL: 0 · HIGH: 0 · MEDIUM: 0 · LOW: 0
+**F90 FIXED** — flip at the merged head gives exactly the manifest's two objectors (O1 + D1),
+typecheck 0, the SHA stamp verified to cover every file the flip measures, and the gated relation
+still killed by the palette move it exists to catch. F85 therefore closes: triage sound, manifest now
+accurate at the head that ships. No new findings; no fix-introduced regressions (the rider's only
+test-program change outside row 49 is F83''s gate, probed above).
+Verdict: **APPROVE**
+Out-of-lane observations: none outstanding — the r1 note about live probe worktrees is discharged.
+
+---
+
+
 ## Round 1 (fix delta)
 
 **Head:** `feat/uiparity-w4` @ `277564c` · **Fix diff read:** `de1cd33..277564c` · **Authority:**
