@@ -5,6 +5,15 @@ import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { useReducedMotion } from '@/lib/hooks/use-reduced-motion'
 import { useOpenerFocusReturn } from '@/features/demo/ui/primitives/useOpenerFocusReturn'
+import { colors } from '@/features/demo/ui/tokens/palette'
+
+/**
+ * The grey a PDF page sits on inside the viewer — phone `documentation/constants.ts:18`,
+ * verbatim. NOT tokenised, and that is the phone's explicit instruction: "naming it here is what
+ * stops the next person 'fixing' it to `colors.background` and reintroducing the seam. Do not
+ * tokenise." The demo had drifted to a darker `#3a3f47` (DP-4 row 8).
+ */
+const PDF_VIEWER_CHROME = '#525659'
 
 export interface PdfPreviewProps {
   title: string
@@ -136,7 +145,7 @@ export function PdfPreview({ title, html, onClose }: PdfPreviewProps) {
   useOpenerFocusReturn()
 
   const content = (
-    <div role="dialog" aria-modal="true" aria-label={title} style={{ position: 'absolute', inset: 0, zIndex: 43, background: '#11151c', display: 'flex', flexDirection: 'column', animation: reducedMotion ? undefined : 'screenIn 0.3s ease', pointerEvents: 'auto' }}>
+    <div role="dialog" aria-modal="true" aria-label={title} style={{ position: 'absolute', inset: 0, zIndex: 43, background: colors.background, display: 'flex', flexDirection: 'column', animation: reducedMotion ? undefined : 'screenIn 0.3s ease', pointerEvents: 'auto' }}>
       <div style={{ padding: '50px 16px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #2a3340' }}>
         <div style={{ fontSize: 16, fontWeight: 700, color: '#f0f4f8' }}>{title}</div>
         <button type="button" aria-label="Close preview" onClick={onClose} style={{ cursor: 'pointer', display: 'flex', background: 'transparent', border: 'none' }}>
@@ -151,7 +160,9 @@ export function PdfPreview({ title, html, onClose }: PdfPreviewProps) {
         onClick={(e) => {
           if (e.target === e.currentTarget) onClose()
         }}
-        style={{ flex: 1, overflow: 'hidden', padding: 14, background: '#3a3f47' }}
+        // Phone `documentation/constants.ts:18` — `PDF_VIEWER_CHROME`, the grey a PDF page sits
+        // on. Named there precisely so nobody re-derives it; the demo had a darker `#3a3f47`.
+        style={{ flex: 1, overflow: 'hidden', padding: 14, background: PDF_VIEWER_CHROME }}
       >
         {/* Sandbox: exactly `allow-modals allow-same-origin` — the minimum that lets the parent
             print the framed court document; the value is PINNED by a test so it cannot silently

@@ -1,6 +1,7 @@
 'use client'
 
 import { useId } from 'react'
+import { glassCardNested } from '@/features/demo/ui/glass-tokens'
 import type { CSSProperties } from 'react'
 import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { SAMPLE_BADGE } from '@/features/demo/ui/controls/sample-badge'
@@ -15,9 +16,10 @@ export interface ImportResultAccordionProps {
 }
 
 const wrap: CSSProperties = {
-  border: '1px solid rgba(43,140,193,0.2)',
-  borderRadius: 12,
-  background: 'rgba(13,27,42,0.5)',
+  // A33/A55 — the nested tier. Was `rgba(13,27,42,0.5)` (the retired navy in rgb spelling) on a
+  // hand-rolled accent hairline; the phone renders this row as `<Card glass
+  // glassVariant="nestedCard">` (`BatchResultDetails.tsx:125-128`). Spread FIRST.
+  ...glassCardNested,
   marginBottom: 10,
   overflow: 'hidden',
 }

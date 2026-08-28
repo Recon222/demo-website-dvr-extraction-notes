@@ -483,7 +483,7 @@ function RecordButton({
         height: 90,
         borderRadius: 45,
         border: GLASS.borderSoft,
-        background: 'linear-gradient(180deg,rgba(26,45,68,0.6),rgba(19,34,54,0.8))',
+        background: GLASS.gradientCard,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

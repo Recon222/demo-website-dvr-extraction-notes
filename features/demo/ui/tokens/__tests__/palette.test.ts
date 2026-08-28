@@ -314,6 +314,62 @@ describe('palette (U0.1 / A1-A9, A19, A27, A28)', () => {
          */
         exempt: ['controls/ExitDialog.tsx'] as readonly string[],
       },
+      {
+        /**
+         * DP-4, and the reason this family exists at all: `RETIRED` above matches RAW TEXT with a
+         * HEX needle, so `#0d1b2a` — its own first entry — cannot catch the same colour written
+         * `rgba(13,27,42,0.55)`. Four live sites carried it that way, invisibly, through five
+         * waves. This suite's own docblock foresaw it ("a retired `rgba(19,34,54,0.85)` must also
+         * catch `rgba(19, 34, 54, 0.85)`") and ledger §120 recorded the sweep passing green over a
+         * re-spelled colour; a FAMILY is what closes it, because these needles are comment-
+         * stripped and match every spelling at once.
+         */
+        name: 'the retired navy in its rgb spelling',
+        replacement: 'glassCardNested (the A33/A55 nested tier), as U1.3 did at its sibling sites',
+        needle: /#0d1b2a|rgba?\(13,27,42/,
+        spellings: ['#0d1b2a', '#0D1B2A', 'rgb(13, 27, 42)', 'rgba(13, 27, 42, 0.55)'],
+        /**
+         * `_shared.Accordion` only, and AWAITING OWNER rather than permanent: its phone
+         * counterpart (`FormSection.tsx:142-155`, the non-glass branch) paints NO fill at all, so
+         * the port is "remove the ground", which is a visible design change rather than a token
+         * swap. Held with rows 15-17 for the owner's ruling.
+         */
+        exempt: ['screens/_shared.tsx'] as readonly string[],
+      },
+      {
+        /**
+         * DP-4 rows 13-14. `#1a2d44` (the dashboard chip and the "+N" pill) and its rgb spelling,
+         * which `AudioRecorderScreen`'s record-button ring also carries as a gradient stop. The
+         * phone paints all three from the nested tier.
+         */
+        name: 'the dashboard flats',
+        replacement: 'glassCardNested, or GLASS.gradientCard for the recorder ring',
+        needle: /#1a2d44|rgba?\(26,45,68/,
+        spellings: ['#1a2d44', '#1A2D44', 'rgb(26, 45, 68)', 'rgba(26, 45, 68, 0.6)'],
+        exempt: [] as readonly string[],
+      },
+      {
+        /**
+         * DP-4 row 8. The phone NAMED this value to stop exactly this drift —
+         * `documentation/constants.ts:18`, `PDF_VIEWER_CHROME = '#525659'`, whose docblock says
+         * "naming it here is what stops the next person 'fixing' it to `colors.background`".
+         * The demo shipped a darker `#3a3f47` instead.
+         */
+        name: 'the pdf viewer chrome',
+        replacement: "PDF_VIEWER_CHROME ('#525659', phone documentation/constants.ts:18)",
+        needle: /#3a3f47|rgba?\(58,63,71/,
+        spellings: ['#3a3f47', '#3A3F47', 'rgb(58, 63, 71)'],
+        exempt: [] as readonly string[],
+      },
+      {
+        /** DP-4 row 9 — the preview modal's own ground, `colors.background` on the phone
+         *  (`CaseNotesPreviewModal.tsx:189`). */
+        name: 'the preview modal ground',
+        replacement: 'colors.background',
+        needle: /#11151c|rgba?\(17,21,28/,
+        spellings: ['#11151c', '#11151C', 'rgb(17, 21, 28)'],
+        exempt: [] as readonly string[],
+      },
     ] as const
 
     const scan = (needle: RegExp): string[] =>
