@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 
 import { CoordinateDisplay, COPY_LABELS, COPY_RESET_MS } from '@/features/demo/ui/inputs/CoordinateDisplay'
-import { colors } from '@/features/demo/ui/tokens/palette'
+import { activeScheme, colors } from '@/features/demo/ui/tokens/palette'
 
 /** jsdom rewrites an inline hex to `rgb(r, g, b)` on read-back. */
 const hexToJsdomRgb = (hex: string) =>
@@ -44,8 +44,19 @@ describe('CoordinateDisplay', () => {
       unmount()
       return value
     }
-    expect(colourAt(3)).toBe(hexToJsdomRgb(colors.success))
-    expect(colourAt(20)).toBe(hexToJsdomRgb(colors.warning))
+    // W4/F85 — CLASS 1: this pin hand-spelled the DARK arm of a seam that is scheme-forked on
+    // purpose. `CoordinateDisplay.tsx`'s `accuracyForegrounds()` keeps the saturated accents in
+    // dark (the `*OnLight` set resolves to one `#f0f4f8` there and painted all three tones at
+    // CIE76 dE 0.0) and takes the measured `*OnLight` set in light (the raw accents measure
+    // 2.03 / 1.72 there). Both arms carry the severity for their own scheme, so the table is
+    // written out per scheme rather than imported from the module — an independent copy reds
+    // when production's branch moves, which reading `TONE_COLOR` back could never do.
+    const saturated =
+      activeScheme === 'dark'
+        ? { success: colors.success, warning: colors.warning }
+        : { success: colors.successOnLight, warning: colors.warningOnLight }
+    expect(colourAt(3)).toBe(hexToJsdomRgb(saturated.success))
+    expect(colourAt(20)).toBe(hexToJsdomRgb(saturated.warning))
     expect(new Set([colourAt(3), colourAt(20), colourAt(40)]).size).toBe(3)
   })
 
