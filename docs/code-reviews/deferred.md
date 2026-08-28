@@ -6780,3 +6780,15 @@ the value first; **U3.2** for the status quartet. Observable violation: a diff t
 **Why deferred:** neither A63 nor the plan row names it; GATES §13/§14 reserve exactly this class to the owner's device pass; an implementer deleting it unasked on the last package would be restyling past the spec.
 
 **Trigger:** **the U8-exit owner device pass (GATES §13, the final side-by-side).** Reads right → recorded divergence here; reads wrong → one-key delete plus a pin, same commit.
+
+---
+
+## 125. W4 (fix round) — `gen-dts-props.mjs`'s interface-body emission is KNOWN-LOSSY for two contract classes; both carry in-contract notices
+
+**Source:** W4 F83 (fix round: repairs 1/2/4 landed; the union-of-objects and generic-binder classes cannot be expressed in an interface body); td lane (the wrapping emitter is out-of-repo toolchain work — verified premise); ts lane (the owed residue row).
+
+**What:** `OverlayHeader` (a discriminated union of prop arms) and `NewCaseModal.onChange` (a generic keyed setter whose erased form re-admitted R-13's typo class until the F83' notice) are emitted as flattened interface bodies. Each now carries a KNOWN-LOSSY notice INSIDE the emitted contract string — where the design agent reads — stating the real shape and the rule the flattening cannot express.
+
+**Why deferred:** a faithful encoding needs an emitter that can wrap non-interface contracts (type aliases / unions), which is design-tool toolchain work outside this repo; the notices are the honest mitigation and were verified at the shipped contracts.
+
+**Trigger:** **the first post-campaign change to the design-sync toolchain, or the design tool consuming typed contracts directly** — whichever first; that change replaces both notices with faithful encodings and strikes this row.
