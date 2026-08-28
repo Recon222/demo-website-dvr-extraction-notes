@@ -301,4 +301,4 @@ No change to `demo.css` (D9 untouched), no change to the sticky declaration itse
 
 **Honesty about the pins:** **jsdom computes no layout, so it cannot see the scroll behaviour at all** — the Chromium table above is the only evidence for the *behaviour*. What the two new jsdom pins in `PhoneFrame.test.tsx` hold is the *mechanism*: the wrapper's height tracks the scale (mutation: drop the compensation → KILLED, `expected '' to be '544px'`), and the reserve still equals the column's padding, read out of `DemoExperience.tsx` (mutation: bottom padding 28→40 → KILLED, `expected 68 to be 56`). Two existing pins reddened on the reserve change and were updated with the new arithmetic: `expected 'scale(0.6699…)' to contain 'scale(0.70'`.
 
-**Status (DP-8)** — **FIXED @ `f8c0ac3`.**
+**Status (DP-8)** — **FIXED @ `3bc7e17`.**
