@@ -67,9 +67,17 @@ describe('LocationRow', () => {
     expect(row.style.borderRightColor).toBe(side)
     expect(row.style.borderBottomColor).toBe(side)
     expect(row.style.borderLeftColor).toBe(side)
-    // The lit top edge is a DIFFERENT token — if a shorthand flattened the family this collapses.
+    // The lit top edge is the tier's OWN token, never the side border.
     expect(row.style.borderTopColor).toBe(respace(glassCard.borderTopColor))
-    expect(row.style.borderTopColor).not.toBe(side)
+    // ...and it collapses into the sides EXACTLY when the tier does. W4/F85: the old
+    // `not.toBe(side)` was a DARK-TIER FACT wearing a row assertion. Dark's card spells
+    // `highlightTop` rgba(184,212,240,0.08) against a rgba(28,78,132,0.5) side; LIGHT's spells
+    // the two identically ON PURPOSE (`glass-tiers.ts` light.card — phone `Colors.ts:281`,
+    // "matches the border, for visibility"), so under the flip the row was being asked to invent
+    // a distinction the phone deliberately does not have. As the relation it always meant, the
+    // line keeps its full dark strength — a shorthand that flattens the family still reds it —
+    // and gains a real light claim: the row must not invent a lit edge its tier lacks.
+    expect(row.style.borderTopColor === side).toBe(respace(glassCard.borderTopColor) === side)
     // No shorthand survives in the emitted declaration.
     expect(row.getAttribute('style')).not.toMatch(/(^|;)\s*border(-color)?:/)
   })
