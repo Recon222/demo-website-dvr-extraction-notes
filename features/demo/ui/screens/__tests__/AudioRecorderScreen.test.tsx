@@ -27,7 +27,11 @@ function hexToRgb(hex: string): string {
 }
 
 /** The same normalisation for a `background` value — jsdom re-spaces it AND collapses a
- *  fully-opaque `rgba(r,g,b,1)` to `rgb(r, g, b)`, which a whitespace strip cannot do. */
+ *  fully-opaque `rgba(r,g,b,1)` to `rgb(r, g, b)`, which a whitespace strip cannot do.
+ *
+ *  SOLID colours only. A gradient needs the shorthand hop — write `background`, read back
+ *  `backgroundImage` — because jsdom parks a gradient on the longhand and this returns `''`.
+ *  `glass-card-recipe.test.tsx:66-77` already has both forms (`normColor` / `normGradient`). */
 function jsdomBackground(value: string): string {
   const probe = document.createElement('div')
   probe.style.background = value
