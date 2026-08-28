@@ -228,11 +228,44 @@ function printType(type, node, depth = 0) {
     const UNBOX = { String: 'string', Number: 'number', Boolean: 'boolean', Symbol: 'symbol' }
     const resolve = (t) => (mentionsTypeParam(t) ? t.getApparentType() : t)
     const unbox = (text) => UNBOX[text] ?? text
+    /**
+     * W4/F83' — the erasure is KNOWN-LOSSY too, and now says so IN the contract.
+     *
+     * Erasing `<K extends keyof Fields>(field: K, value: Fields[K])` collapses the DEPENDENT
+     * parameter to the union of every key's value type, so `value: string` re-admits exactly the
+     * typo class review R-13 closed: `incidentCoordinateSource` is `IncidentCoordSource | ''`
+     * (`caseFormData.ts:44`), not `string`, and the flattened contract accepts
+     * `onChange('incidentCoordinateSource', 'geocodedd')`. The per-key correspondence is real and
+     * the interface body cannot carry it — same wall as the union props type — so it is DECLARED
+     * rather than left to look like the whole truth.
+     *
+     * Only the parameters that actually lost information are named, and a parameter that IS a
+     * bare type parameter is not one of them: erasing `field: K` to `keyof Fields` yields exactly
+     * the set of valid keys, which is lossless. The loss is in the DEPENDENT parameter — the one
+     * whose type mentions `K` without being `K` (`value: Fields[K]`), because that is what
+     * collapses fourteen per-key types into one union. Naming `field` too, as the first cut of
+     * this notice did, would point the reader at the half that is fine.
+     */
+    const dependent = []
     const params = s.getParameters().map((p) => {
-      const pt = resolve(p.getTypeAtLocation(node))
-      return `${p.getName()}: ${unbox(erase(printType(pt, node, depth + 1)))}`
+      const declared = p.getTypeAtLocation(node)
+      if (mentionsTypeParam(declared) && !declared.isTypeParameter()) dependent.push(p.getName())
+      return `${p.getName()}: ${unbox(erase(printType(resolve(declared), node, depth + 1)))}`
     })
-    return `(${params.join(', ')}) => ${unbox(erase(printType(resolve(s.getReturnType()), node, depth + 1)))}`
+    const sig = `(${params.join(', ')}) => ${unbox(erase(printType(resolve(s.getReturnType()), node, depth + 1)))}`
+    if (!dependent.length) return sig
+    // The bare-type-parameter parameter — the KEY the dependent one varies with.
+    const keyParam = s
+      .getParameters()
+      .find((p) => p.getTypeAtLocation(node).isTypeParameter())
+      ?.getName()
+    return (
+      `/* KNOWN-LOSSY (W4/F83): generic signature erased — ${dependent.join(', ')} ` +
+      `${dependent.length === 1 ? 'is' : 'are'} the WIDENED union of every ` +
+      `${keyParam ? `\`${keyParam}\`` : 'key'}'s type, not one type. The per-key correspondence ` +
+      `holds at runtime and an interface body cannot express it: check the component's own props ` +
+      `type before assuming a value is valid for a given ${keyParam ?? 'key'}. */ ${sig}`
+    )
   }
   // A local object/interface -> expand to a literal so it needs no external name.
   if (type.isObject() && !type.isArray() && type.getProperties().length && (isLocalType(type) || isPlainData(type))) {

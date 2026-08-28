@@ -1058,7 +1058,23 @@ describe('map chrome contrast floors', () => {
     // dimmer than the inactive one (3.14 < 5.82), a perceptual inversion of what a selection
     // cue should be. Phone-verbatim, so not re-tinted at this desk.
     expect(AA_NON_TEXT).toBeLessThan(AA_TEXT)
-    expect(round(worst(TAB_ACTIVE_TINT, BAR))).toBeLessThan(round(worst(TAB_INACTIVE_TINT, BAR)))
+
+    // F85 objector (W4/F90): the inversion is a DARK-HALF fact, so the relation is gated to the
+    // dark half and joins the manifest's §3 deliberate-dark list. Ungated it was a clause-12
+    // objector of exactly the class F85 exists to remove — and the WORST kind, because it reds
+    // when the product IMPROVES: in light the inversion CORRECTS (active 10.36, inactive 7.56)
+    // and a pin spelling `active < inactive` fails on the good news. Measured under the flip:
+    // `AssertionError: expected 10.36 to be less than 7.56`.
+    //
+    // GATED, not deleted, and not downgraded to the `!==` two lines above (the delta's other
+    // shape). That `not.toBe` compares the two TOKENS; this compares their measured RATIOS on
+    // the bar's own fill, which is the whole finding — 3.14 vs 5.82, the active selection cue
+    // being the dimmest mark in a label-less bar. It is the figure behind the OWNER DEVICE-PASS
+    // item, it is phone-verbatim so not re-tinted here, and a comment cannot red when a palette
+    // move quietly ends it. Under `activeScheme` it stays falsifiable exactly where it is true.
+    if (activeScheme === 'dark') {
+      expect(round(worst(TAB_ACTIVE_TINT, BAR))).toBeLessThan(round(worst(TAB_INACTIVE_TINT, BAR)))
+    }
   })
 
   it('row 45b (F60): the sheet`s HINT is body text and clears the same floor', () => {

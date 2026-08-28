@@ -6,20 +6,39 @@
 
 ## Result
 
-| leg | at `def2aec` (VETTED-r1) | at `3f9bad3` (this branch) |
+> ### ⚠ MEASURED AT `c081a51` — re-cut this table at every merge that touches its subject.
+>
+> `c081a51` is the last commit at which any file the flip MEASURES changed. Commits after it on
+> this branch touch only this document, which is not in the test program — so the stamp is the
+> honest one to check against, and it is deliberately not bumped by its own write-up. If a commit
+> lands that touches source, tests or config, this table is stale and must be re-run.
+>
+> **This document is EVIDENCE, and evidence is stale the moment a parallel branch lands.** The
+> first cut measured `3f9bad3` and claimed "no unexplained objectors"; F87's row-49 pin was on a
+> parallel branch (`merge-base --is-ancestor c7e82fe 3f9bad3` → NO), so at the merged head there
+> were THREE objectors and the claim was FALSE at the SHA that would have shipped — W4/F90. A
+> falsifiable claim over a measurement must carry the SHA it was measured at, and must be re-run
+> like a gate, not quoted like a conclusion.
+
+| leg | at `def2aec` (VETTED-r1) | at `c081a51` (this branch) |
 |---|---|---|
 | `pnpm typecheck` (app + previews) | **exit 2** — six TS2367 | **exit 0** |
 | `pnpm test` | **75 failed / 28 files** | **2 failed / 2 files** |
 
 ```
+$ git rev-parse --short HEAD
+c081a51
 > tsc --noEmit && tsc -p tsconfig.previews.json
 FLIP_TYPECHECK_EXIT=0
 
  Test Files  2 failed | 308 passed (310)
-      Tests  2 failed | 4329 passed | 2 todo (4333)
+      Tests  2 failed | 4333 passed | 2 todo (4337)
+
+❯ features/demo/ui/__tests__/glass-well-recipe.test.tsx (9 tests | 1 failed)
+❯ features/demo/ui/controls/__tests__/CentredDialog.test.tsx (37 tests | 1 failed)
 ```
 
-**Both remaining reds are accounted for below. There are no unexplained objectors.**
+**Both remaining reds are accounted for below. There are no unexplained objectors at `c081a51`.**
 
 Clause 12 promised "exactly three objectors" and the observed set is **two**, of which only one is
 a deliberate pin — so the clause's arithmetic was wrong in both directions and a **plan correction
@@ -94,6 +113,7 @@ so a future reader does not "fix" them into scheme-relative form and destroy wha
 | `__tests__/palette-contrast.test.ts:861` | A DARK-HALF historical fact: records the ratio a specific dark ground measured. |
 | `__tests__/palette-contrast.test.ts:992` | The failure F52 diverged from is dark's; the row is about that dark measurement. |
 | `__tests__/palette-contrast.test.ts:1057` | Both lines are dark-half facts and form one pair. |
+| `__tests__/palette-contrast.test.ts:1063` (row 49, W4/F90) | The tab bar's perceptual INVERSION — active 3.14 vs inactive 5.82, the selection cue being the dimmest mark in a label-less bar. A dark-half measurement, and the figure behind the owner device-pass item. Ungated it red on the flip **when the product improved**: in light the inversion corrects (active 10.36, inactive 7.56). Now `if (activeScheme === 'dark')`. |
 
 ## 4. FORCED-DARK SURFACES — checked, and NOT objectors
 
@@ -124,6 +144,7 @@ correct design, and it is why the objector set is small.
 | 2 — deliberate objector | 1 | O1 above |
 | 3 — real light-half defect | 1 | D1 above, ledger-proposed |
 | — | **+2** | two NEW reds surfaced by W4/F84: two test files that previously failed to COMPILE now run, so their reds became visible (75 → 77 before conversion) |
+| — | **+1, then 0** | W4/F90: F87's row-49 relation pin landed on a parallel branch and became a third objector at the merged head. Gated to the dark half in this round; the manifest re-cut at `c081a51`. |
 
 The review named `palette-contrast`, `mapTokens` and `DemoExperience.sandbox` as the prime
 candidates for real light defects. **All three were refuted at source** — two `palette-contrast`

@@ -162,5 +162,16 @@ describe('the design-sync bundle entry (D7 / U8.4)', () => {
       expect(cfg.dtsPropsFor.OverlayHeader).toContain('KNOWN-LOSSY')
       expect(cfg.dtsPropsFor.OverlayHeader).toContain('DISCRIMINATED GROUP')
     })
+
+    it('marks an erased generic signature as KNOWN-LOSSY rather than shipping the widened union bare', () => {
+      // W4/F83'. `NewCaseModal.onChange` is `<K extends keyof NewCaseFields>(field: K, value:
+      // NewCaseFields[K])`. An interface body carries no type-parameter binder, so the erasure to
+      // `value: string` is forced — but bare it RE-ADMITS the typo class review R-13 closed:
+      // `incidentCoordinateSource` is `IncidentCoordSource | ''` (`caseFormData.ts:44`), so the
+      // flat contract accepts `onChange('incidentCoordinateSource', 'geocodedd')`. The notice is
+      // the honest form of a loss the format cannot avoid, exactly as `OverlayHeader`'s is.
+      expect(cfg.dtsPropsFor.NewCaseModal).toContain('generic signature erased')
+      expect(cfg.dtsPropsFor.NewCaseModal).toContain('value is the WIDENED union')
+    })
   })
 })
