@@ -4,7 +4,8 @@ import { LocationRow } from '@/features/demo/ui/screens/map/LocationRow'
 import { sheetIncident, sheetLocation } from '@/features/demo/ui/screens/map/__tests__/test-utils'
 import { glassCard } from '@/features/demo/ui/glass-tokens'
 import { MAP_PIN_COLORS } from '@/features/demo/ui/screens/map/mapTokens'
-import { colors } from '@/features/demo/ui/tokens/palette'
+import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
+import { colors, scheme } from '@/features/demo/ui/tokens/palette'
 import { STATUS_ACCENT, severityTone } from '@/features/demo/ui/tokens/status'
 
 const locItem = sheetLocation({
@@ -67,9 +68,20 @@ describe('LocationRow', () => {
     expect(row.style.borderRightColor).toBe(side)
     expect(row.style.borderBottomColor).toBe(side)
     expect(row.style.borderLeftColor).toBe(side)
-    // The lit top edge is a DIFFERENT token — if a shorthand flattened the family this collapses.
+    // The lit top edge is the tier's OWN token, never the side border.
     expect(row.style.borderTopColor).toBe(respace(glassCard.borderTopColor))
-    expect(row.style.borderTopColor).not.toBe(side)
+    // ...and it is the TIER's `highlightTop`, read end to end. W4/F85: the old `not.toBe(side)`
+    // was a DARK-TIER FACT wearing a row assertion. Dark's card spells `highlightTop`
+    // rgba(184,212,240,0.08) against a rgba(28,78,132,0.5) side; LIGHT's spells the two
+    // identically ON PURPOSE (`glass-tiers.ts` light.card — phone `Colors.ts:281`, "matches the
+    // border, for visibility"), so under the flip the row was asked to invent a distinction the
+    // phone deliberately does not have. Naming the tier token says the same thing without
+    // naming a scheme, and says MORE: the line above compares the row to the fragment, so a
+    // collapse of the fragment ITSELF moves both of its sides together and passes. This one
+    // reds on that too. (In light a collapsed fragment stays value-indistinguishable from a
+    // correct one — nothing measurable can see it there; `glass-card-recipe.test.tsx:92` holds
+    // the structural half.)
+    expect(row.style.borderTopColor).toBe(respace(GLASS_TIER[scheme].card.highlightTop))
     // No shorthand survives in the emitted declaration.
     expect(row.getAttribute('style')).not.toMatch(/(^|;)\s*border(-color)?:/)
   })

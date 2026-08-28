@@ -122,7 +122,11 @@ describe('MAP_GLASS_COLORS (A83, D5 — the floating map chrome)', () => {
     // `Colors.dark.background` at 82%. Was `rgba(13, 27, 42, 0.65)`: the retired navy at the
     // pre-redesign alpha, two drifts in one value.
     expect(MAP_GLASS_SCHEMES.dark.containerBg).toBe(withAlpha(palette.dark.background, 0.82))
-    expect(MAP_GLASS_COLORS.containerBg).toBe(MAP_GLASS_SCHEMES.dark.containerBg)
+    // W4/F85 — CLASS 1. This line spelled `.dark` on BOTH sides, so it read as a derivation pin
+    // and was in fact the RESOLUTION pin: `MAP_GLASS_COLORS` spreads `MAP_GLASS_SCHEME[scheme]`,
+    // and hard-spelling one half made it red the moment the scheme flipped. The derivation it
+    // looked like it was asserting is the line above, which is scheme-independent and stays put.
+    expect(MAP_GLASS_COLORS.containerBg).toBe(MAP_GLASS_SCHEMES[scheme].containerBg)
   })
 
   it('ships the LIGHT half the phone ships (D2 — nothing hard-codes a dark value with a light sibling)', () => {
@@ -245,9 +249,19 @@ describe('MAP_SURFACE_COLORS (map-domain, always dark by the phone’s own rulin
     // Phone `constants/index.ts:98` / `:94` / `:104`. The demo carried `rgba(13, 27, 42, 0.85)`
     // — the retired navy — for `overlayMedium`, and had no web-side key at all for the other
     // two, which `CAMERA_MARKER` then re-typed by hand.
-    expect(MAP_SURFACE_COLORS.overlayMedium).toBe(withAlpha(colors.background, 0.85))
-    expect(MAP_SURFACE_COLORS.controlsBg).toBe(withAlpha(colors.background, 0.95))
-    expect(MAP_SURFACE_COLORS.borderStrong).toBe(withAlpha(colors.border, 0.6))
+    //
+    // F85 objector: `palette.dark`, NOT `colors` — this record is scheme-INVARIANT by the
+    // phone's own ruling, quoted verbatim in `constants/index.ts:86-91` and restated in this
+    // module's docblock: *"The map always uses the Mapbox satellite-streets style, so these are
+    // map-domain constants rather than theme-switched values. Base hex values align with
+    // Colors.dark."* The `colors.*` spelling here was the file's ONE inconsistency — its two
+    // siblings below (`CLUSTER_COLORS.circle`, `CAMERA_MARKER.baseBorder`) already read
+    // `palette.dark` and already say why. Reading `colors` made this pin claim the surfaces
+    // follow the scheme, which is the opposite of what the module contracts and what the phone
+    // ships; under the flip it demanded a WHITE map overlay. The production module is correct.
+    expect(MAP_SURFACE_COLORS.overlayMedium).toBe(withAlpha(palette.dark.background, 0.85))
+    expect(MAP_SURFACE_COLORS.controlsBg).toBe(withAlpha(palette.dark.background, 0.95))
+    expect(MAP_SURFACE_COLORS.borderStrong).toBe(withAlpha(palette.dark.border, 0.6))
   })
 })
 

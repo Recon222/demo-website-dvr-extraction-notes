@@ -1,8 +1,16 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { TabBar } from '@/features/demo/ui/controls/TabBar'
+import { TabBar, TAB_BAR_HEIGHT } from '@/features/demo/ui/controls/TabBar'
 import { TAB_LABELS, TAB_VIEWS } from '@/features/demo/engine/content/screens'
 import { WizardDrawer, type DrawerItem } from '@/features/demo/ui/controls/WizardDrawer'
+import { colors } from '@/features/demo/ui/tokens/palette'
+
+/** What jsdom stores for a colour written into a declaration (it re-spaces and hex->rgb). */
+function jsdomColor(value: string): string {
+  const probe = document.createElement('div')
+  probe.style.color = value
+  return probe.style.color
+}
 
 describe('TabBar', () => {
   it('renders the four tabs and calls onSelect', () => {
@@ -25,13 +33,54 @@ describe('TabBar', () => {
   })
 
   it('highlights the active tab only', () => {
+    // U8.3/A63: the tints are the phone's navigator options, not demo one-offs —
+    // `tabBarActiveTintColor: colors.primary` / `tabBarInactiveTintColor: colors.textSecondary`
+    // (`app/(tabs)/_layout.tsx:13-14`). Composed from the palette so the pin moves with the
+    // token rather than freezing `#2B8CC1`/`#99badd`; the RED this replaced was
+    // `#4BA3D4`/`#5d7a9a` (the pre-port pair, owned by this package per plan §4.4).
     const { container } = render(<TabBar active="export" onSelect={vi.fn()} />)
     const stroke = (label: string) => {
       const svg = container.querySelector(`button[aria-label="${label}"] svg`)!
       return svg.getAttribute('stroke') ?? svg.getAttribute('fill')
     }
-    expect(stroke('Export')).toBe('#4BA3D4')
-    expect(stroke('Map')).toBe('#5d7a9a')
+    expect(stroke('Export')).toBe(colors.primary)
+    expect(stroke('Map')).toBe(colors.textSecondary)
+    // Anti-vacuity: the two tints are actually DIFFERENT, so an accident that collapses the
+    // ternary to one arm cannot satisfy both lines above.
+    expect(stroke('Export')).not.toBe(stroke('Map'))
+  })
+
+  it('paints the phone tab-bar chrome: flat `card` fill, `border` hairline, paddingTop 6, icons 24', () => {
+    // Phone `app/(tabs)/_layout.tsx:15-19` — `backgroundColor: colors.card`,
+    // `borderTopColor: colors.border`, `paddingTop: Layout.spacing.xsm` (= 6). The icons take
+    // the navigator-supplied `size`, which is @react-navigation's 24 on both platforms.
+    const { container } = render(<TabBar active="map" onSelect={vi.fn()} />)
+    const bar = container.firstElementChild as HTMLElement
+
+    expect(bar.style.backgroundColor).toBe(jsdomColor(colors.card))
+    // A FLAT fill, not the demo's old `linear-gradient(180deg,#1e3450,#16283c)`.
+    expect(bar.style.backgroundImage).toBe('')
+    expect(bar.style.borderTopColor).toBe(jsdomColor(colors.border))
+    expect(bar.style.borderTopWidth).toBe('1px')
+    expect(bar.style.paddingTop).toBe('6px')
+
+    // `Array.from` and not a bare `for…of` over the NodeList: `target` is es5 (root CLAUDE.md),
+    // so iterating one directly is TS2802 without `--downlevelIteration`.
+    const icons = Array.from(container.querySelectorAll('svg'))
+    expect(icons).toHaveLength(TAB_VIEWS.length) // anti-vacuity: an empty list would pass the loop
+    for (const svg of icons) {
+      expect(svg.getAttribute('width')).toBe('24')
+      expect(svg.getAttribute('height')).toBe('24')
+    }
+  })
+
+  it('keeps TAB_BAR_HEIGHT at 50 — D6, the phone sets no height (three overlays bottom-align here)', () => {
+    // Phone delta inventory §2.B: "HEIGHT IS NOT SET. There is no `height` key anywhere in
+    // `tabBarStyle`." `ExportHub`, `CaseMapPicker` and `MapBottomSheet` all bottom-align
+    // against this export, so it is a demo-side constant with nothing to port.
+    expect(TAB_BAR_HEIGHT).toBe(50)
+    const { container } = render(<TabBar active="map" onSelect={vi.fn()} />)
+    expect((container.firstElementChild as HTMLElement).style.height).toBe('50px')
   })
 
   it('announces the active tab, not just tints it (R-19)', () => {

@@ -12,6 +12,9 @@ vi.mock('motion/react', async (orig) => ({
 
 import { AUTHORIZED_MS, FADE_MS, HOLD_MS, SCAN_MS, type BootVideo } from '@/features/demo/engine/logic/boot'
 import { BootSequence, VIDEO_CEILING_MS, VIDEO_OVERRUN_MS } from '@/features/demo/ui/screens/BootSequence'
+import { SCANNER_GROUND, SCANNER_SKIP_PILL } from '@/features/demo/ui/screens/scanner-hud-colors'
+import { palette } from '@/features/demo/ui/tokens/palette'
+import { asJsdom } from '@/features/demo/ui/__tests__/jsdom-colour'
 
 const VIDEO: BootVideo = { src: '/demo-media/boot-intro.mp4', poster: '/demo-media/boot-intro-poster.jpg' }
 
@@ -55,6 +58,33 @@ describe('BootSequence', () => {
     const pill = screen.getByRole('button', { name: 'Skip the opening sequence' })
     expect(pill.style.fontFamily).toContain('--font-stmono')
     expect(pill.style.fontFamily).not.toContain('--font-jbmono')
+  })
+
+  /**
+   * D8 and ledger §111's render half. Neither value was ever asserted before U8.1 — the gate
+   * ground was a bare `#000314` with no pin at all, and the skip pill's `rgba(4,8,14,0.55)` was
+   * one of the twelve darknesses U4.4 collapsed everywhere EXCEPT here.
+   *
+   * The source-text bans in `tokens/__tests__/palette.test.ts` are the other half and cannot
+   * substitute for this one: a scan proves no file SPELLS a retired literal, never that the
+   * replacement is what paints (the F53 split, stated in the pin above this one). Both are
+   * needed — deleting the `background` line entirely passes every scan.
+   */
+  it('paints the gate on the ported ground, and the pill in its own tokens (D8 / §111)', () => {
+    render(<BootSequence video={VIDEO} onComplete={vi.fn()} />)
+    const gate = screen.getByTestId('demo-boot')
+    expect(gate.style.background).toBe(asJsdom(SCANNER_GROUND))
+    // The retired one-off, asserted as an absence so a revert reds rather than merely
+    // un-pinning: `#000314` composites to `rgb(0, 3, 20)` through jsdom.
+    expect(gate.style.background).not.toBe('rgb(0, 3, 20)')
+
+    const pill = screen.getByRole('button', { name: 'Skip the opening sequence' })
+    expect(pill.style.background).toBe(asJsdom(SCANNER_SKIP_PILL.fill))
+    expect(pill.style.color).toBe(asJsdom(SCANNER_SKIP_PILL.label))
+    expect(pill.style.border).toBe(`1px solid ${asJsdom(SCANNER_SKIP_PILL.border)}`)
+    // The pill is chrome over an arbitrary intro frame, so it takes `overlay` and not the sheet
+    // backdrop the plan row named — the ratio half of that deviation is in palette-contrast.
+    expect(pill.style.background).not.toBe(asJsdom(palette.dark.scrim))
   })
 
   describe('the simulated scan', () => {

@@ -566,7 +566,7 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     expect(cta).toHaveAccessibleDescription('Review the import before it saves')
     expect(cta).toHaveTextContent('Import ready for review')
     expect(cta).toHaveTextContent('Review import →')
-    expect(cta.style.border).toContain('rgba(16, 209, 119, 0.32)')
+    expect(cta.style.border).toContain(withAlpha(colors.success, 0.32)) // W4/F85: composed, as the partial case already was
     // U7.3: `#7fe6b6` (matrix row 74's "sixth green") is gone. The phone's :242 paints this
     // title `colors.successOnLight` under D8a, and its :253-256 measures why: '#7fe6b6' on
     // the 10% success wash is 1.37:1 in light. The saturated accent stays on the ICON, which
@@ -620,7 +620,7 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     const cta = screen.getByRole('button', { name: /See error details/ }) // visible text IS the name (R-3)
     expect(cta).toHaveTextContent('Import failed')
     expect(cta).toHaveTextContent('See error details →')
-    expect(cta.style.border).toContain('rgba(255, 71, 87, 0.32)')
+    expect(cta.style.border).toContain(withAlpha(colors.error, 0.32)) // W4/F85: composed, as the partial case already was
     // "The log is most valuable when something broke" — the failed run's lines stay up.
     expect(screen.getByText('✗ failed at normalizing')).toBeInTheDocument()
     expect(screen.getByTestId('terminal-progress-fill').style.width).toBe('55%')
@@ -636,7 +636,7 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     const cta = screen.getByTestId('terminal-review-cta')
     expect(cta).toHaveTextContent('sample import · review →')
     expect(cta).not.toHaveTextContent('Review import →')
-    expect(screen.getByText('sample import · review →').style.color).toBe('rgb(255, 217, 61)') // amber, not muted
+    expect(screen.getByText('sample import · review →').style.color).toBe(jsdomRgb(colors.warning)) // W4/F85: amber, not muted -- composed
   })
 
   it('MIXED batch (R-35): a mid-batch fallback still marks the CTA while the live trust line reads cloud', () => {
@@ -657,7 +657,7 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     const cta = screen.getByTestId('terminal-review-cta')
     expect(cta).toHaveTextContent('sample import · review →') // run summary: substitution disclosed
     expect(cta).not.toHaveTextContent(/^.*Review import →/)
-    expect(screen.getByText('sample import · review →').style.color).toBe('rgb(255, 217, 61)') // amber
+    expect(screen.getByText('sample import · review →').style.color).toBe(jsdomRgb(colors.warning)) // W4/F85: amber -- composed
   })
 
   it('runHadSampleFallback is run-scoped: FILE markers do NOT reset it (unlike deriveTrust)', () => {

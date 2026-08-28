@@ -6,7 +6,7 @@ function Phone({ children }: { children: React.ReactNode }) {
   return (
     <div
       data-demo-root
-      style={{ position: 'relative', background: '#0d1b2a', width: 378, height: 760, overflow: 'hidden', fontFamily: 'system-ui' }}
+      style={{ position: 'relative', background: '#002853', width: 378, height: 760, overflow: 'hidden', fontFamily: 'system-ui' }}
     >
       {children}
     </div>
@@ -49,7 +49,7 @@ const TIME_OFFSET_HTML = `
 export function CaseNotes() {
   return (
     <Phone>
-      <PdfPreview title="Case Notes" html={CASE_NOTES_HTML} onClose={() => {}} onSave={() => {}} />
+      <PdfPreview title="Case Notes" html={CASE_NOTES_HTML} onClose={() => {}} />
     </Phone>
   )
 }
@@ -57,7 +57,7 @@ export function CaseNotes() {
 export function TimeOffsetReport() {
   return (
     <Phone>
-      <PdfPreview title="Time-Offset Report" html={TIME_OFFSET_HTML} onClose={() => {}} onSave={() => {}} />
+      <PdfPreview title="Time-Offset Report" html={TIME_OFFSET_HTML} onClose={() => {}} />
     </Phone>
   )
 }

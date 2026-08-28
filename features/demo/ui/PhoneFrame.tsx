@@ -6,6 +6,41 @@ import { usePhoneScale } from '@/features/demo/ui/usePhoneScale'
 import { PhoneOverlayContext } from '@/features/demo/ui/phone-overlay'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
+import { withAlpha } from '@/features/demo/ui/tokens/scale'
+
+/**
+ * A88/A89 (U8.2) — the scan line, off the teal and onto the palette.
+ *
+ * The demo painted `rgba(78,205,196,0.35)` with a `0 0 12px rgba(78,205,196,0.6)` glow. That is
+ * the exact colour the phone purged wholesale in P6 (#115). The phone's own `GridBackground`
+ * (`GridBackground.tsx:75-119`) spells the line `backgroundColor: withAlpha(colors.primary, 0.3)`
+ * with `shadowColor: colors.primary` at `shadowOpacity: 0.8`, so both are DERIVED here the same
+ * way rather than typed as the `rgba(43,140,193,0.3)` / `#2B8CC1` the matrix quotes — a
+ * phone-side re-tint of `primary` then moves the sweep with everything else it tints. The
+ * matrix's `#2B8CC1` for the glow is the shadow COLOUR alone and drops the opacity beside it;
+ * see `SCAN_GLOW`.
+ *
+ * NOT changed: the 7s duration (the phone's is 8000ms). The plan's U8.2 row moves the colour and
+ * the glow and says nothing about timing, and `scanSweep` itself is one of the 17 keyframes D9
+ * freezes. A duration is a separate row nobody has written.
+ */
+const SCAN_LINE = withAlpha(colors.primary, 0.3)
+
+/**
+ * The glow. `shadowColor: colors.primary` AND `shadowOpacity: 0.8` on the phone
+ * (`GridBackground.tsx:86` + `:145-155`); CSS has one colour where RN has a colour and an
+ * opacity, so the 0.8 is composed into the colour here.
+ *
+ * W4 capture round (`_captures/w4/DIFF.md`): this shipped at an implicit 1.0. Not visible — the
+ * composite measured DIMMER than the teal it replaced (81.9 -> 64.8), so nothing looked wrong —
+ * but wrong by construction, and a value that is only right by accident is the kind a pin exists
+ * for. `__tests__/PhoneFrame.test.tsx` reads it back off the rendered style.
+ *
+ * The 12px BLUR is NOT `shadowRadius: 10` re-expressed. RN's five shadow props do not carry to
+ * CSS at a fixed ratio — this repo's own ruling, at `glass-tokens.ts`'s `glassWell` docblock —
+ * 12px is the demo's lifted value, and the plan's U8.2 row spells `0 0 12px`. Colour only.
+ */
+const SCAN_GLOW = withAlpha(colors.primary, 0.8)
 
 const grid: CSSProperties = {
   position: 'absolute',
@@ -69,8 +104,8 @@ export function PhoneFrame({ children, tabBar, screenRef }: PhoneFrameProps) {
               right: 0,
               top: 0,
               height: 2,
-              background: 'linear-gradient(90deg,transparent,rgba(78,205,196,0.35),transparent)',
-              boxShadow: '0 0 12px rgba(78,205,196,0.6)',
+              background: `linear-gradient(90deg,transparent,${SCAN_LINE},transparent)`,
+              boxShadow: `0 0 12px ${SCAN_GLOW}`,
               animation: 'scanSweep 7s linear infinite',
               pointerEvents: 'none',
               zIndex: 1,

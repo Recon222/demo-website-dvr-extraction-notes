@@ -2,6 +2,10 @@
 // fields. This is the calibration text-heavy solo (fonts/typography surface).
 import { SubmissionScreen } from 'open-pro-next'
 
+/* Form customisation (Settings > Form Fields) can hide any wizard field; a screen asks this
+   predicate per field id. Every preview shows the DEFAULT state — nothing hidden. */
+const allFieldsVisible = () => true
+
 const FIELDS = {
   requesterName: 'Det. M. Okafor',
   requesterBadge: '4471',
@@ -17,7 +21,7 @@ const FIELDS = {
 
 export function Filled() {
   return (
-    <div data-demo-root style={{ background: '#0d1b2a', width: 378, fontFamily: 'system-ui', overflow: 'hidden' }}>
+    <div data-demo-root style={{ background: '#002853', width: 378, fontFamily: 'system-ui', overflow: 'hidden' }}>
       <SubmissionScreen
         occNumber="PR-2026-0114-2287"
         fields={FIELDS}
@@ -25,7 +29,8 @@ export function Filled() {
         onNext={() => {}}
         onBack={() => {}}
         onMenu={() => {}}
-        onPickCoords={() => {}}
+        isFieldVisible={allFieldsVisible}
+        onCoordinates={() => {}}
       />
     </div>
   )
@@ -33,7 +38,7 @@ export function Filled() {
 
 export function Empty() {
   return (
-    <div data-demo-root style={{ background: '#0d1b2a', width: 378, fontFamily: 'system-ui', overflow: 'hidden' }}>
+    <div data-demo-root style={{ background: '#002853', width: 378, fontFamily: 'system-ui', overflow: 'hidden' }}>
       <SubmissionScreen
         occNumber="PR-2026-0114-2287"
         fields={{ requesterName: '', requesterBadge: '', requesterUnit: '', requesterPhone: '', requesterEmail: '', businessName: '', streetAddress: '', city: '', locationContact: '', locationPhone: '' }}
@@ -41,7 +46,8 @@ export function Empty() {
         onNext={() => {}}
         onBack={() => {}}
         onMenu={() => {}}
-        onPickCoords={() => {}}
+        isFieldVisible={allFieldsVisible}
+        onCoordinates={() => {}}
       />
     </div>
   )

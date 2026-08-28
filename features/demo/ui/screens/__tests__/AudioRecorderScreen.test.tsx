@@ -26,6 +26,18 @@ function hexToRgb(hex: string): string {
   return `rgb(${r}, ${g}, ${b})`
 }
 
+/** The same normalisation for a `background` value — jsdom re-spaces it AND collapses a
+ *  fully-opaque `rgba(r,g,b,1)` to `rgb(r, g, b)`, which a whitespace strip cannot do.
+ *
+ *  SOLID colours only. A gradient needs the shorthand hop — write `background`, read back
+ *  `backgroundImage` — because jsdom parks a gradient on the longhand and this returns `''`.
+ *  `glass-card-recipe.test.tsx:66-77` already has both forms (`normColor` / `normGradient`). */
+function jsdomBackground(value: string): string {
+  const probe = document.createElement('div')
+  probe.style.background = value
+  return probe.style.background
+}
+
 /**
  * The recorder screen (matrix rows 67-68), rendered from props alone — which is why every
  * state a browser makes hard to reach (denied, no analyser, sub-500ms) is testable here.
@@ -218,10 +230,12 @@ describe('AudioRecorderScreen — recording and paused', () => {
 
   it('colours the level bar by the phone bands', () => {
     const { rerender } = render(<AudioRecorderScreen {...props({ phase: 'recording', canStop: true, meter: liveMeter(0.9) })} />)
-    expect(screen.getByTestId('level-fill')).toHaveStyle({ background: '#ff4757' })
+    // W4/F85: `LEVEL_BAND_COLOR` (`AudioRecorderScreen.tsx:129-133`) is `{ hot: colors.error,
+    // normal: colors.primary }`, so the band mapping is what this pins — not which arm ships.
+    expect(screen.getByTestId('level-fill')).toHaveStyle({ background: colors.error })
 
     rerender(<AudioRecorderScreen {...props({ phase: 'recording', canStop: true, meter: liveMeter(0.2) })} />)
-    expect(screen.getByTestId('level-fill')).toHaveStyle({ background: '#2B8CC1' })
+    expect(screen.getByTestId('level-fill')).toHaveStyle({ background: colors.primary })
   })
 })
 
@@ -403,7 +417,11 @@ describe('AudioRecorderScreen — U7.2 chrome (matrix rows 67-69, A43, A61, D-1)
     render(<AudioRecorderScreen {...props()} />)
     const close = screen.getByRole('button', { name: 'Cancel recording' })
     expect(close).toHaveStyle({ width: `${touchTarget.min}px`, height: `${touchTarget.min}px` })
-    expect(close.style.background.replace(/\s+/g, '')).toBe(GLASS_TIER[scheme].card.gradient[0].replace(/\s+/g, ''))
+    // W4/F85: normalise the EXPECTED value through jsdom too. The whitespace strip this
+    // replaces was not enough — the light tier's top stop is `rgba(248,250,252,1)` and jsdom
+    // collapses a fully-opaque `rgba()` to `rgb()` on read-back, so the two sides differed by
+    // more than spacing the moment the scheme moved.
+    expect(close.style.background).toBe(jsdomBackground(GLASS_TIER[scheme].card.gradient[0]))
     // The badge is the header's `trailing`, so it is a SIBLING of the control, not a child.
     const row = close.parentElement as HTMLElement
     expect(row).toHaveTextContent('AUDIO CAPTURE')

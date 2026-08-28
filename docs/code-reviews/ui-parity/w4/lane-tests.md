@@ -1,0 +1,300 @@
+# Lane: tests — W4
+
+## Round 2 (riders)
+
+**Head:** `feat/uiparity-w4` @ `a7d4215` · **Rider diff read:** `277564c..a7d4215` · **Scope:** my own
+HIGH (**F90**) plus the two housekeeping checks the brief names; one out-of-lane paragraph on **F83'**
+because the ts lane's file carries no round-2 section for it yet.
+
+**Cold gates, my own probe worktree** (`probe-w4r2-tests` @ `a7d4215`): `vitest run` →
+**310 files / 4,335 passed | 2 todo (4,337), exit 0** · `pnpm typecheck` → **exit 0**. Every mutation
+on the canonical source in my own worktree; verdicts from exit codes; restore proven after each probe
+and at the end (`git diff a7d4215 --stat` empty, both gates re-green).
+
+### F90 — **FIXED**
+
+`c081a51` gates row 49's inversion relation to `if (activeScheme === 'dark')` and adds it to the
+manifest's §3 deliberate-dark list. Three things had to hold and all three do.
+
+**1. The flip, replicated by me at the MERGED head** (`palette.ts:261` `'dark'` → `'light'`, one line,
+throwaway worktree, never committed):
+
+```
+FLIP_TYPECHECK_EXIT=0        (tsc --noEmit && tsc -p tsconfig.previews.json, 0 errors)
+FLIP_SUITE_EXIT=1
+ Test Files  2 failed | 308 passed (310)
+      Tests  2 failed | 4333 passed | 2 todo (4337)
+FAIL  features/demo/ui/__tests__/glass-well-recipe.test.tsx        (D1)
+FAIL  features/demo/ui/controls/__tests__/CentredDialog.test.tsx   (O1)
+```
+
+**Exactly the manifest's two objectors, no more** — and the counts match its re-cut table
+(`2 failed | 4333 passed | 2 todo (4337)`) line for line. `palette-contrast.test.ts` is gone from the
+set. My r1 HIGH is closed at the SHA that ships.
+
+**2. The SHA stamp covers everything the flip measures — verified, not accepted.** The manifest now
+stamps `c081a51` and argues that later commits touch only itself. I checked the claim the same way I
+caught the r1 defect: `git merge-base --is-ancestor <c> c081a51` for every commit in the rider range —
+`5274aef` (F83', which edits `gen-dts-props.mjs`, `config.json` **and** `design-sync-entry.test.ts`,
+i.e. real test-program files) → **YES**; `1a58a48`, `d52af73` → **YES**; only `bb26314`, the manifest
+write-up itself, is **NO**. And `git diff c081a51..a7d4215 --stat` is **one file, the manifest**. So the
+stamp is honest and the parallel-branch hole that produced F90 is closed for this round. The document
+also now carries the general rule ("evidence is stale the moment a parallel branch lands… must be
+re-run like a gate, not quoted like a conclusion") with the `merge-base` evidence from my finding — the
+lesson is written down where the next reader needs it, not just applied once.
+
+**3. The gate did not kill the pin.** All three r1/r2 probes under the shipped dark scheme, scoped to
+`palette-contrast.test.ts` (62 cases):
+
+| probe | mutation | verdict |
+|---|---|---|
+| **Y1** (r1, re-run) | `TAB_ACTIVE_TINT` → `colors.border` — the ratio collapses | **KILLED**, `expected 1.38 to be greater than or equal to 3` |
+| **Y2** (r1, re-run) | `TAB_ACTIVE_TINT` → `colors.textSecondary` — ratio still clears 3.0, the selection cue vanishes | **KILLED**, `expected '#99badd' to be '#2B8CC1'` |
+| **Y5** (new — isolates the GATED line) | `palette.dark.primary` → `#bcd8ee`: the inversion ENDS while **both** tints still clear the floor and both AT-THE-CONSTANT pins stay green | **KILLED**, `expected 7.92 to be less than 5.82` — the gated relation, and only it |
+
+Y5 is the one that matters, and it took two attempts to construct honestly: **Y4** (dimming
+`palette.dark.textSecondary`) also reds row 49, but on the *floor* assertion (`expected 1.75 to be
+greater than or equal to 3`), because on this bar's fill any downward move big enough to end the
+inversion also breaches the floor — the floor is the tighter guard in that direction. Moving `primary`
+*up* is the only direction where the relation is the sole guard, and there it bites. So the gate
+narrowed **where** the assertion runs without weakening **what** it catches, which is exactly the
+distinction the fix commit claims and the reason gating beat deleting or downgrading it to the
+`not.toBe` two lines above (that one compares tokens; this one compares measured ratios, which is the
+finding).
+
+### Housekeeping
+
+**Both r1 probe worktrees are gone.** `git worktree list | grep -i probe` returned **NONE** before I
+cut mine — `f85-screens-probe` and `probe-u8.4-lightflip` (the tree the stale manifest was measured in)
+are both torn down, and mine is torn down now: `unlinked 549 junction(s) in 2 pass(es)` · `.pnpm`
+240 → 240 · exit 0 · branch deleted · `git worktree list` carries no `probe-*` row. The r1 out-of-lane
+observation is discharged.
+
+### Out of lane — F83' (one paragraph, because `lane-typescript.md` has no round-2 section yet)
+
+`5274aef` extends the KNOWN-LOSSY notice to the erased generic signature and — the part worth
+recording — **names only the DEPENDENT parameter**, not the type parameter itself: erasing `field: K`
+to `keyof Fields` yields exactly the valid key set and is lossless, while `value: Fields[K]` collapses
+fourteen per-key types into one union and is where R-13's typo class re-enters. The commit says its
+first cut named `field` too and that this "would point the reader at the half that is fine" — a
+correction in the right direction, and the predicate (`mentionsTypeParam(declared) &&
+!declared.isTypeParameter()`) encodes precisely that distinction. **Probed, in my lane's terms:** the
+new gate at `design-sync-entry.test.ts` asserts the committed contract text contains
+`generic signature erased` and `value is the WIDENED union`; rewriting that phrase in `config.json`
+→ **KILLED** (1 failed / 45 passed), so the gate pins the shipped artifact rather than the generator's
+behaviour. Removing the detection from `gen-dts-props.mjs` instead leaves the gate green but makes the
+**generator exit 1**, which is the correct division: the artifact is gated by the suite, the emitter by
+its own run. I have no test-lane objection; the encoding judgement remains the ts lane's.
+
+## Tests Summary (Round 2 riders)
+CRITICAL: 0 · HIGH: 0 · MEDIUM: 0 · LOW: 0
+**F90 FIXED** — flip at the merged head gives exactly the manifest's two objectors (O1 + D1),
+typecheck 0, the SHA stamp verified to cover every file the flip measures, and the gated relation
+still killed by the palette move it exists to catch. F85 therefore closes: triage sound, manifest now
+accurate at the head that ships. No new findings; no fix-introduced regressions (the rider's only
+test-program change outside row 49 is F83''s gate, probed above).
+Verdict: **APPROVE**
+Out-of-lane observations: none outstanding — the r1 note about live probe worktrees is discharged.
+
+---
+
+
+## Round 1 (fix delta)
+
+**Head:** `feat/uiparity-w4` @ `277564c` · **Fix diff read:** `de1cd33..277564c` · **Authority:**
+**there is no PR and therefore no mapping comment** — `gh pr view` returns *"no pull requests found
+for branch feat/uiparity-w4"*. Per contract §7 I am flagging that rather than working around it
+silently; I proceeded on the disk artifacts (`w4/VETTED-r1.md`, `w4/lightflip-objector-manifest.md`,
+and the per-finding commit trailers), which do cover every ID I was given — **F82** (supersedes my
+r0 MEDIUM), **F86**, **F87**, **F88**, **F85**. Nothing below confirms an ID I could not find on disk.
+
+**Cold gates, my own probe worktree** (`probe-w4d-tests` @ `277564c`, install 15.4 s):
+`vitest run` → **310 files / 4,334 passed | 2 todo (4,336), exit 0** · `pnpm typecheck`
+(`tsc --noEmit && tsc -p tsconfig.previews.json`) → **exit 0, 0 errors**. Motion mode motion-ON.
+Every mutation on the canonical source in my own worktree; verdicts from exit codes; restore proven
+after each probe and at the end (`git diff 277564c --stat` empty, suite and typecheck re-green).
+
+### Per-finding status
+
+| F | Status | Evidence |
+|---|---|---|
+| **My r0 MEDIUM → F82** | **FIXED — and my finding is superseded exactly as the vetted doc says** | `4b7d4dc` adds `tsconfig.previews.json` and `package.json`'s `typecheck` script is now `tsc --noEmit && tsc -p tsconfig.previews.json`. **My E2 measurement re-run and inverted:** `tsc -p tsconfig.previews.json --listFiles \| grep -c "design-sync/previews"` → **37** (was 0); the root program still reports 0, which is correct — the previews are in their OWN program, not smuggled into the app's. **The class probe (E1') now KILLS:** renaming `Banner`'s `message` prop gives `PREVIEWS_TSC_EXIT=2`, 13 errors, naming `.design-sync/previews/Banner.tsx(27,31) TS2322` — the drift that was invisible to every gate at r0 is now a compile error at the line. **D-2's REFUSAL is correct**: with the previews compiled on every `pnpm typecheck`, the un-fireable trigger I filed against has no row left to sit in. VETTED also corrected D-2's stated *reason* to the dot-directory mechanism I measured, so the record is right for whoever reads it next. |
+| **F88** | **FIXED** | `fdf2816`. **T3 re-run verbatim** (`const t = '#4ecdc4ff'` planted in `controls/TabBar.tsx`): **KILLED**, 2 failed / 1 passed — was SURVIVED. The fix went past my prescription: `{3,8}` (matching every sibling scan, not just `{6,8}`) plus an `expandHex` that doubles `#rgb`/`#rgba` and truncates the alpha, with four new control lines including the two that matter — `#4ec` and `#4ecf` must expand to `#44eecc` and stay silent, so widening the pattern cannot invent matches. |
+| **F86** | **FIXED — two-sided** | `55b1b87`. **F86a** (drop `ExportActionSheet`'s gate) reproduces the commit's quoted RED **verbatim**: `expected 'sheetUp 0.28s ease' to be ''`. **F86b** (drop `SyncStatusCard`'s spinner gate) → **KILLED**. **F86c** — the half worth probing, because a "just delete the animation" fix passes a gate-only pin: deleting the animation outright → **KILLED** (`expected '' to co…`). The re-anchored selectors read the rendered node, and each case also asserts what must SURVIVE the gate (the sheet and its three menuitems, the spinner glyph and its word). `PhoneFrame`'s `scanSweep` split out to §123 with an owner trigger is the right call — it is a design question, not a defect. |
+| **F87** | **FIXED — two-sided** | `c7e82fe`. **Y1** (active tint → `colors.border`, i.e. the ratio collapses) → **KILLED**, `expected 1.38 to be greater than…`. **Y2** — the assertion that carries the finding: active tint := `colors.textSecondary`, so the ratio still clears 3.0 but the selection cue vanishes → **KILLED**, `expected '#99badd' to be '#2B8CC1'`. Bound + AT-THE-CONSTANT + `not.toBe` between the two, and `AA_NON_TEXT < AA_TEXT` so the row cannot be collapsed into the text bound. Exactly row 48's shape. **But see the new finding below — this row's last assertion is a fresh flip-day objector.** |
+| **F85** | **PARTIAL** | The triage itself is excellent and I confirm its substance: my own flip reproduces **O1** (`CentredDialog.test.tsx`) and **D1** (`glass-well-recipe.test.tsx`) precisely, and `FLIP_TYPECHECK_EXIT=0` closes F84. What does not hold is the manifest's completeness claim at the merged head — see below. |
+
+### New finding (fix-introduced, in the blast radius of F87)
+
+### [HIGH] The light-flip manifest says "no unexplained objectors" — at the MERGED head there are THREE, and the third is a fresh instance of the very class F85 exists to remove, written by an F87 fix commit that landed after the manifest was measured
+File: `features/demo/ui/__tests__/palette-contrast.test.ts`, row 49's last assertion (added by `c7e82fe`) — `expect(round(worst(TAB_ACTIVE_TINT, BAR))).toBeLessThan(round(worst(TAB_INACTIVE_TINT, BAR)))`; the claim it falsifies: `docs/code-reviews/ui-parity/w4/lightflip-objector-manifest.md:27` — *"**Both remaining reds are accounted for below. There are no unexplained objectors.**"*, over a table reading **2 failed / 2 files**.
+Issue: I replicated the clause-12 flip myself at `277564c` — one line, one site, `palette.ts:261` `'dark'` → `'light'`, in a throwaway worktree, never committed. Result: **`FLIP_TYPECHECK_EXIT=0`** (F84 genuinely closed) but the suite is **3 failed / 3 files (4,331 passed | 2 todo)** — `CentredDialog.test.tsx` (O1), `glass-well-recipe.test.tsx` (D1) **and `palette-contrast.test.ts`, which the manifest does not list**. Scoped re-run names it: `row 49: BOTH tab-bar tints clear the NON-TEXT floor on the bar's own fill (W4/F87)` — `AssertionError: expected 10.36 to be less than 7.56`.
+The assertion pins the dark half's *relation* as if it were a contract: in dark the active mark is dimmer than the inactive (3.14 < 5.82), which the row's own comment describes as *"a perceptual inversion of what a selection cue should be"* and records as an owner device-pass item. In light the inversion **corrects itself** (active 10.36, inactive 7.56) — so the pin reds precisely when the product gets better. Its values are correctly `palette[scheme]`-relative; its *relation* is not. That is the F85 class exactly ("pins that asserted the SHIPPED scheme, not a contract"), reintroduced inside the round that swept 75 of them.
+Evidence — why it is a clean-merge defect and nobody's individual mistake: `git merge-base --is-ancestor c7e82fe 3f9bad3` → **NO**. F87 (`c7e82fe`, 19:41, the `u8.3` fix branch) is **not** an ancestor of `3f9bad3` (the `u8.4` F85 triage branch where the flip was run, manifest committed 21:35). The two branches are parallel and were merged separately into `feat/uiparity-w4`; the flip could not have seen row 49, and the flip was not re-run at the merged head. This is W3's hazard-#2 shape one wave on — a defect that exists only in the combined tree, with every constituent branch green.
+Severity: the manifest is the clause-12 exit evidence for the whole campaign and its falsifiable claim is false at the head that ships; the flip day has no reviewer, which is where the severity rides. Bounded honestly: nothing a visitor sees is wrong today, and the third objector is a *pin* defect, not a light-half defect.
+Fix (one line, plus one line of process): make the relation scheme-relative or drop it — either `if (scheme === 'dark')`-gate it as the manifest's §3 does for other deliberate dark-spelled pins and add it to that list, or replace it with the fact the row actually wants to preserve (`TAB_ACTIVE_TINT !== TAB_INACTIVE_TINT`, already asserted two lines above, plus the measured 3.14 recorded as a comment for the device pass). Then **re-run the flip at `HEAD` and re-cut the manifest's Result table** — the manifest should carry the SHA it was measured at, which it currently does (`3f9bad3`) but the round treated as if it were the merged head.
+
+### Fix-introduced regressions elsewhere: none
+Sampled the blast radius of every fix commit that touches a test file I had not already probed: `59ab7da` (es5 `Array.from` repair — typecheck exit 0 confirms), `ca96e73`/`467cf8d`/`ccd3072` (the `jsdomBackground` round-trip and its named solid-colour ceiling — the helper still throws rather than passing an unparsed value through, so the r0 non-tautology verdict stands), `8d50aa0` (two quoted test counts corrected in earlier commit bodies — the round self-audited its own prose, which is the behaviour the campaign has been asking for). Baseline moved 4,326 → 4,334 with no deletions.
+
+### Probe ledger (round 1)
+
+**13 runs · 13 valid · 11 KILLED · 1 SURVIVED-as-designed (`#4ec`/`#4ecf` non-match, a control) ·
+1 measurement (the flip).** Worktree `probe-w4d-tests` @ `277564c`, branch deleted. One mutation per
+probe; verdicts from exit codes; the phone repo never written to. Restore proven after each and at
+the end: `git diff 277564c --stat` empty, `vitest run` 310/4,334/exit 0, `pnpm typecheck` exit 0.
+Teardown: `unlinked 549 junction(s) in 2 pass(es)` · `.pnpm` 240 → 240 · exit 0.
+
+One extra edge, recorded not filed: `expandHex`'s docblock says *"5- and 7-digit runs … simply never
+equal the needle"*. Measured — `#4ecdc4f` (7 digits) truncates to `#4ecdc4` and DOES equal it, so a
+7-digit run sharing the first six digits reports as an offender. It fails **closed** (a false red on a
+string that is not a valid CSS colour), there are zero such literals in the tree, and the fix is a
+comment edit. Below the bar for a finding; noted so the next reader of that sentence is not misled.
+
+## Tests Summary (Round 1 fix delta)
+CRITICAL: 0 · HIGH: 1 (new, fix-introduced) · MEDIUM: 0 · LOW: 0
+Prior findings: my r0 MEDIUM **superseded/FIXED via F82**; **F88 FIXED**; F86 **FIXED**; F87 **FIXED**
+(with the rider above); F85 **PARTIAL** — triage sound, manifest stale at the merged head.
+Verdict: **REVISE**
+Out-of-lane observations:
+- **No PR exists for `feat/uiparity-w4`**, so contract §7's mapping comment could not be read. The disk artifacts covered it this time; the orchestrator should know the authority was substituted.
+- **Two probe worktrees are still live** — `f85-screens-probe` @ `0c33fbe` and `probe-u8.4-lightflip` @ `3f9bad3`. Neither is mine. The second is the exact tree the stale manifest was measured in, still pinned at the pre-merge SHA, which is plausibly *why* nobody re-ran the flip at the head: the answer was already sitting in a tree that looked current. The mutation skill's isolation rule ends at teardown for this reason.
+
+---
+
+# Round 0 (initial review) — retained below
+
+
+**Mode:** code review · **Lane question:** are the wave's new pins behaviourally meaningful, do they
+pin what they claim, and would they catch a realistic regression?
+
+**Pre-flight, cold, reproduced in my own probe worktree** (`probe-w4r-tests` @ `def2aec`, install 3.1 s):
+`pnpm exec vitest run --silent=true` → **310 files / 4,326 passed | 2 todo (4,328), exit 0**;
+`pnpm exec tsc --noEmit --incremental false` → **exit 0, 0 errors**;
+`node .design-sync/check-rn-parity.mjs` → **exit 0, "all 145 anchor rows match"** (the guard RESOLVED,
+it did not skip — I read the row output, not just the exit code). No pre-flight failure.
+Motion mode **motion-ON** throughout; `navigator.mediaDevices` left undefined.
+
+**Probe provenance:** every mutation applied to the **canonical source in my own worktree** — never to
+`w4-wave`, never to the phone repo (read-only; the one DRIFT probe moved the **web** side only).
+Verdicts from **exit codes**. Restore proven after each probe and at the end (`git diff def2aec --stat`
+empty, suite re-green at 4,326).
+
+---
+
+## HIGH
+
+*None.*
+
+---
+
+## MEDIUM
+
+### [MEDIUM] D-2's first trigger arm cannot fire — it is keyed on an event that, by the deferral's own parenthesis, nothing observes; and I confirmed the previews are outside BOTH gates for a reason the row does not name
+File: `docs/planning/demo-phone-ui-parity/reports/u8.4-implementation-report.md` D-2 (Trigger: *"**the next time a synced component's props change** (the guard that would have caught it does not exist)"*); the surface: `.design-sync/previews/*.tsx` (37 files) vs `features/demo/ui/**`
+Issue: this is the round's real coverage question and the coordinator's hunt item 6. The ten-empty-cards repair (`a316f41`) fixed the instances; **no suite pin was added for the class**, and the author says so honestly (Defect 2). That part is fine — what is not is the ledger row that carries it. The campaign's bar is "a real reason to wait **and** a concrete un-defer trigger", and W2/§100's corrected close condition is the precedent: a trigger whose firing condition is itself invisible is the failure the bar exists to prevent. D-2 states the invisibility in its own parenthesis and then uses that event as its primary trigger. Its **second** arm ("the first W5/post-campaign package that touches `.design-sync/` tooling") is observable and is the one that should carry the row.
+Evidence — **1 SURVIVED, 1 KILLED control**, plus a mechanism correction:
+- **E1 (control)** — renamed `Banner`'s `message` prop inside `features/demo/ui/controls/Banner.tsx`: `tsc --noEmit` → **exit 2, 20 errors**, proving prop drift IS caught inside `features/`. **Zero** of those errors are in `.design-sync/` (`grep design-sync` on the output: empty).
+- **E2** — `pnpm exec tsc --noEmit --listFiles | grep -c "design-sync/previews"` → **0**. The previews are not merely untyped, they are **not in the tsc program at all**, and the reason is not the one D-2 gives: `tsconfig.json:26` includes `**/*.tsx` with only `node_modules` excluded, but TypeScript's wildcard `include` **skips dot-directories**, so `.design-sync/` is invisible to the glob. D-2's prescribed `declare module 'open-pro-next'` would therefore fix nothing on its own — the row's own "plus a tsconfig change that widens the program" clause is not an extra, it is the load-bearing half, and the ordering matters to whoever executes it.
+Why it matters on the use-day: the severity rides the day the trigger should fire, and that day has no reviewer. A W5 package changes a synced component's props, `pnpm test` stays green (310/310), `tsc` stays green, `check-rn-parity` stays green, and the design agent gets an empty card — the exact 10-of-37 failure this wave spent a commit repairing, with the row that was supposed to prevent the recurrence keyed on an event nobody sees.
+Fix: re-cut D-2's trigger to its observable arm only, and record E2's mechanism in the row (dot-directory exclusion, so the tsconfig widening is prerequisite, not adjunct). If the aggregator wants the class closed in-suite instead, the cheap shape exists and is in-lane: a vitest `alias` for `open-pro-next` → `@/.design-sync/ds-entry` plus one `it.each(pinned)` that renders each preview and asserts the root is non-empty — the same `pinned` list `design-sync-entry.test.ts:39` already derives, so it needs no second roster.
+
+---
+
+## LOW
+
+### [LOW] `teal-purge.test.ts` canonicalises SIX-digit hex only — the 8-digit `#rrggbbaa` form walks past a guard whose docblock says "every literal found … is CANONICALISED"
+File: `features/demo/ui/__tests__/teal-purge.test.ts:88` (`/#[0-9a-fA-F]{6}\b|rgba?\(…/`), claim at `:36-46` ("The four spellings … every literal found — needle side and haystack side alike — is CANONICALISED to `#rrggbb` first")
+Issue: `#[0-9a-fA-F]{6}\b` cannot match inside `#4ecdc4ff` — after six hex digits comes `f`, a word char, so `\b` fails and `{6}` does not backtrack. Every sibling hex scan in this repo uses `{3,8}` deliberately (`settings-palette-sweep.test.ts:100,117`, `CompletionScreen.test.tsx:158`, `status-owners.test.tsx:346`, `sheet-chrome.test.tsx:337`), and `banner.test.tsx:97` names `#rrggbbaa` by hand as a form to watch. So this file is narrower than the house pattern **and** narrower than its own stated convention 2, "shrink the claim to the pattern".
+Evidence — **1 SURVIVED, 2 KILLED controls** (scope: the file, 3 cases):
+- **T1 (control)** — `const t = 'rgb(78,205,196)'` planted in `controls/TabBar.tsx` → **KILLED**, 2 failed, naming `'controls/TabBar.tsx:#4ecdc4'`. The rgb-form canonicalisation the docblock advertises is real.
+- **T3** — `const t = '#4ecdc4ff'` planted in the same file → **SURVIVED**, 3 passed, exit 0.
+Bounded on purpose: **zero** 8-digit hex literals exist under `features/demo/ui/` today (measured), so nothing is live — this is a claim-vs-pattern gap on a closing-wave guard, not a hole with an occupant. Filed rather than dropped because it is the class this campaign has now filed in five consecutive waves, and this file is otherwise the best-built instance of the pattern the campaign has produced.
+Fix: `{6}` → `{6}(?:[0-9a-fA-F]{2})?` (drop the trailing pair before comparing), plus one line in the existing planted-control case: `expect(canonicalTeals("color: '#4ecdc4ff'")).toEqual([TEAL])`. Re-run T3 and confirm the kill with T1 still killing.
+
+---
+
+## Hunt list — what I ran, and what it settled
+
+| # | Item | Probes | Result |
+|---|---|---|---|
+| **1** | U8.1's replacement for the vacuous `α >= 0.65` floor — does the old hole stay closed, is the new pin two-sided? | **A1**: `SCANNER_DISCLOSURE_TEXT` alpha `0.8 → 0.65`, i.e. the exact value the deleted assertion ACCEPTED → **KILLED** (`palette-contrast.test.ts`, 1 failed). **A2**: the opposite direction, disclosure → full-strength `forced.text` (AA still passes, subordination broken) → **KILLED** (1 failed). | **Closed and two-sided.** The v1 assertion is deleted, not merely raised (`SplashScreen.test.tsx` diff shows the three `-` lines), and the replacement measures the composited ratio over `SCANNER_GROUND` rather than an alpha number, so D8-class ground moves are now visible. U8.1's own P1b — deliberately keeping a SURVIVED probe on the assertion it replaced, rather than quietly deleting it — is the right way to retire a vacuous pin and I confirm the successor kills in both directions. |
+| **2** | U8.2's teal scan — allow-list keyed per F32/F66? anti-vacuity control kept? does canonicalisation really collapse the spellings? | **T1**: `rgb(78,205,196)` in a non-exempt file → **KILLED**, naming the file. **T2**: the exempt hex `#4ECDC4` planted in a SECOND non-exempt file (`DashboardScreen.tsx`) → **KILLED** — the site-keyed `ALLOWED` (`` `${path}:${hex}` ``) does what W2/F32 and W3/F66 prescribed, and this is the first W-wave guard that got it right on the first landing. **T6**: a D12 surface stops painting the teal → **KILLED** (dead-exemption half). **T3**: 8-digit form → SURVIVED (LOW above). | **Correct on all three counts asked.** The anti-vacuity control is kept, is asserted, and — the part that matters — runs the SAME `canonicalTeals` extraction the tree walk does, so a spelling the walk stops seeing the control stops seeing too. It also carries a negative control (`#4ecdc5`, `rgba(78,205,197,…)` must pass) and `files.length > 50`. |
+| **3** | U8.2's LAST guard anchor (`gridSubtle`) — break it both ways | **G1** (DRIFT, web-side value `0.11 → 0.22`) → **exit 1**, `DRIFT  gridSubtle.dark  RN=rgba(153,186,221,0.11)  web=rgba(153,186,221,0.22)` + the "1 anchor row(s) drifted" summary. **G2** (RENAME, both halves of the web key) → **exit 1**, two `PARSE-FAILED … (field not found: gridSubtle)` rows. | **Live in both failure modes.** The anchor resolves (145 rows, not a skip) and each mode prints the row that broke. The phone side was not touched. |
+| **4** | U8.3's cross-package red resolution — reds quoted, same commit? | Read `da3ec60`: body quotes both failures verbatim with file:line and the before/after exit codes; `git show --stat` confirms `TabBar.tsx` and `controls.test.tsx` land **in the same commit**. **T4** (revert the active tint to `#4BA3D4`) reproduces the quoted message **byte for byte**: `expected '#4BA3D4' to be '#2B8CC1' // Object.is equality`. **T5** (revert the flat `card` fill) → **KILLED**. | **Both W2-parked pins genuinely reddened here and were fixed red-and-green together.** The commit body is the best RED/GREEN record in the campaign — it names why U2.2 could not have done it and why this package is both first and last to touch them. |
+| **5** | U8.4's permanent gates | **G3** (a component in `componentSrcMap` but dropped from the generated entry) → **KILLED**. **G4** (one `cardMode` override removed) → **KILLED**. **G5** (an orphan `dtsPropsFor` entry) → **KILLED** — the both-directions `toEqual` is real. **G6** (`#0d1b2a` planted in a preview) → **KILLED**. **B1** (`rgba(4, 8, 14, 0.55)` planted in a non-exempt file) → **KILLED**. **B2** (an exemption stops spelling its value) → **KILLED**. | **Six for six.** The entry gate is a REAL `await import()` of the generated module, not a source scan — the file's docblock names the string-presence trap and avoids it. Every gate is driven from `componentSrcMap` with no exemption list, so a component added later is covered with no edit; `pinned.length > 30` is the anti-vacuity control. The four-spelling halves are asserted as their own cases (`$name: the needle matches every spelling`), which is the shape I would have prescribed. |
+| **6** | The ten-empty-cards repair — is there now a pin, or is it the `declare module` deferral? | **E1/E2** above. | **It is the deferral, and the deferral's primary trigger cannot fire** → the MEDIUM. The repair itself is sound and proven not-caused-here (`git diff 780399e` = 11 lines, all backdrop hexes). |
+| **7** | Tautology sweep over all new pins | Read every new/changed test file in full. | **No tautology found.** `__tests__/jsdom-colour.ts` transforms the EXPECTED side only and **throws** rather than passing an unparsed value through, so it cannot launder a comparison; `PhoneFrame.test.tsx`'s grid pin compares the rendered element to `GLASS.gridOverlay` and fails closed on a missing element (`?? ''` vs a non-empty recipe); the contrast rows pin ratio AND identity-at-the-constant; the scanner-state sweep asserts `STATES` equals the three-arm union before iterating it. The one alias-shaped line (`toContain(strip(colors.gridSubtle))`) is redundant rather than vacuous — it sits beside a full-recipe equality, and `gridSubtle` is now a guard anchor and a banned bare literal. |
+
+### Deleted pins — all four accounted for
+
+The wave removes exactly four assertions, and each has a stronger successor I probed:
+
+| Deleted | Where | Successor | Probe |
+|---|---|---|---|
+| `expect(alpha).toBeGreaterThanOrEqual(0.65)` | `SplashScreen.test.tsx` | the composited AA + subordination pair in `palette-contrast.test.ts` | A1 / A2 both **KILLED** |
+| `expect(stroke('Export')).toBe('#4BA3D4')` | `controls.test.tsx` | `colors.primary`, read off the token | T4 **KILLED**, message verbatim |
+| `expect(stroke('Map')).toBe('#5d7a9a')` | `controls.test.tsx` | `colors.textSecondary` | covered by the same case |
+| the enclosing `it(…R-6)` block | `SplashScreen.test.tsx` | the `describe('scanner HUD (A87 / U8.1)')` suite, 8 cases | A1 / A2 |
+
+**Nothing was weakened.** `features/demo/engine/logic/boot.ts` is the diff's only engine file and its
+change is **comment-only** (a retired literal removed from prose), so the 80% gate is untouched.
+
+---
+
+## Probe ledger
+
+**16 runs · 16 valid probes · 14 KILLED · 2 SURVIVED (both filed above: T3 the 8-digit teal form,
+E2 the preview typecheck gap) · 0 equivalent/invalid.**
+
+Worktree `worktrees/probe-w4r-tests` @ `def2aec`, branch `probe-w4r-tests`. One mutation per probe;
+every verdict from the runner's exit code; every restore proven (`git status --porcelain` empty after
+each) and at the end (`git diff def2aec --stat` empty, suite re-green at **310 files / 4,326 passed /
+2 todo / exit 0**). The phone repo was never written to. Teardown via `tools/worktree-remove.ps1`:
+
+```
+node_modules/.pnpm entries BEFORE: 240
+unlinked 549 junction(s) in 2 pass(es)
+node_modules/.pnpm entries AFTER : 240
+OK -- worktree removed, main checkout's .pnpm store intact (240 entries).
+```
+
+exit 0 · branch `probe-w4r-tests` deleted · `git worktree list` carries no `probe-*` row.
+
+---
+
+## Tests Summary
+CRITICAL: 0 · HIGH: 0 · MEDIUM: 1 · LOW: 1
+Verdict: **APPROVE with comments**
+
+Behaviourally meaningful coverage: **strong — the strongest of the four waves.** Fourteen of sixteen
+probes killed, including every gate the brief named. Three things are worth recording as the
+campaign's closing state rather than as findings: (a) U8.1 retired a vacuous pin by **keeping its
+SURVIVED probe as the evidence** instead of deleting it quietly, which is the honest way to do it and
+the first time this campaign has; (b) `teal-purge.test.ts` is the first new source-scan guard in five
+waves to arrive site-keyed, with an asserted anti-vacuity control that runs the walk's own extraction
+and a negative control one channel away — the F32 → F66 → here progression finally landed; (c)
+`design-sync-entry.test.ts` pins reachability with a **real `await import()`** and drives every case
+from `componentSrcMap`, so it has no roster to rot.
+
+Engine coverage gate (80% on `lib/**` + `features/demo/engine/**`): **not applicable** — the only
+engine file in the diff is a comment change to `boot.ts`. `screens/scanner-hud-colors.ts` is a
+`ui/**` token record with no branching; it is nonetheless pinned harder than most engine code
+(totality over `BootHudState`, per-state contrast rows, and the `SCANNER_SCHEME`-vs-app-`scheme`
+distinction that `terminal-palette.test.ts` established).
+
+Mock strategy: **at the IO edge.** No new mocks. The design-sync gates read `config.json` and import
+the generated entry for real, which is the point.
+
+Factory usage: **canonical.** No new fixtures; the new suites derive their rosters from
+`componentSrcMap`, `Object.keys(SCANNER_COLORS)` and the `ALLOWED` maps rather than hand-typing them.
+
+Setup-shim traps: **none.** Every new pin reads an inline style or a source file; nothing claims a
+canvas, camera or reduced-motion path it does not install. `check-rn-parity` RESOLVED rather than
+skipped — verified from the row output, per the `skipIf` hazard.
+
+Determinism (clock / entropy injected): **yes** — no `Date.now()`/`Math.random()` in any new test.
+
+Out-of-lane observations:
+- U8.2's report measures the rgb-form needles for the RETIRED navy ramp at **fifteen live sites across eleven files** and correctly declines to widen `palette.test.ts`'s sweep inside a closing package. That is ledger §120's other half and it is now quantified; the aggregator has what it needs to size the row.
+- U8.4's D-1 (`gen-dts-props.mjs` cannot print intersection types) leaves six undefined references in four emitted `.d.ts`. Contract-shape question, not a test question — type-design's call.

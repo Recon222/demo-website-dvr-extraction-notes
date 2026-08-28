@@ -13,6 +13,7 @@ import {
   type BootVideo,
 } from '@/features/demo/engine/logic/boot'
 import { SplashScreen } from '@/features/demo/ui/screens/SplashScreen'
+import { SCANNER_GROUND, SCANNER_SKIP_PILL } from '@/features/demo/ui/screens/scanner-hud-colors'
 
 export interface BootSequenceProps {
   /** `BOOT_VIDEO` from the engine — null until the owner's intro video is dropped in. ONE value,
@@ -33,9 +34,15 @@ const skipButton: CSSProperties = {
   zIndex: 2,
   padding: '6px 13px',
   borderRadius: 999,
-  border: '1px solid rgba(43,140,193,0.45)',
-  background: 'rgba(4,8,14,0.55)',
-  color: 'rgba(153,186,221,0.9)',
+  // The three colours are `scanner-hud-colors.ts`'s, which is also where the reasoning lives:
+  // the fill is `overlay`, NOT the `scrim` plan §5's U8.1 row asked for, because this pill
+  // floats over the intro video rather than over the app's own ground (measured: the label
+  // reads 4.80 over a white frame on `overlay`, 1.02 on `scrim`). The composed nested-card
+  // border this line used to spell was the last one in the tree, and is what blocked that
+  // value from being banned — deferred.md §97, whose ban lands in this package.
+  border: `1px solid ${SCANNER_SKIP_PILL.border}`,
+  background: SCANNER_SKIP_PILL.fill,
+  color: SCANNER_SKIP_PILL.label,
   fontFamily: MONO,
   fontSize: 11,
   letterSpacing: 3,
@@ -268,8 +275,11 @@ export function BootSequence({ video, onComplete }: BootSequenceProps) {
       style={{
         position: 'absolute',
         inset: 0,
-        // The phone's splash background (`AuthenticatedSplashScreen.tsx:288`).
-        background: '#000314',
+        // The phone's splash background (`AuthenticatedSplashScreen.tsx:288`) — decision D8.
+        // Was `#000314`, lifted when the phone still hardcoded it to match its native launch
+        // screen; ruling D5(a) moved all six phone sites to `Colors.dark.background` and there
+        // is now zero live `#000314` anywhere in that repo. See `SCANNER_GROUND`.
+        background: SCANNER_GROUND,
         // `done` stays hidden too: it renders for one frame before the parent unmounts us, and
         // at opacity 1 that frame is a black flash on top of the app.
         opacity: phase === 'fading' || phase === 'done' ? 0 : 1,

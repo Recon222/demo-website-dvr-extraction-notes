@@ -5,7 +5,7 @@ import {
   SAMPLE_TINT,
 } from '@/features/demo/ui/controls/button-recipe'
 import { GLASS_TIER, type GlassTier } from '@/features/demo/ui/tokens/glass-tiers'
-import { palette, scheme } from '@/features/demo/ui/tokens/palette'
+import { activeScheme, palette, scheme } from '@/features/demo/ui/tokens/palette'
 import { flattenOver, withAlpha } from '@/features/demo/ui/tokens/scale'
 import { SEVERITIES, neutralTone, severityTone } from '@/features/demo/ui/tokens/status'
 import { MEDIA_CLOSE_CHIP } from '@/features/demo/ui/screens/MediaLibrarySheet'
@@ -20,7 +20,14 @@ import { PANE_VALUE_TINT } from '@/features/demo/ui/screens/settings/panes/_pane
 import { MAP_GLASS_COLORS } from '@/features/demo/ui/screens/map/mapTokens'
 import { SAMPLE_BADGE, SAMPLE_NOTICE } from '@/features/demo/ui/controls/sample-badge'
 import { TERMINAL_PALETTE, TERMINAL_SCHEME } from '@/features/demo/ui/screens/import/terminal-palette'
+import {
+  SCANNER_COLORS,
+  SCANNER_DISCLOSURE_TEXT,
+  SCANNER_GROUND,
+  SCANNER_SKIP_PILL,
+} from '@/features/demo/ui/screens/scanner-hud-colors'
 import { UNCHECKED_MARK_EDGE } from '@/features/demo/ui/controls/choice-controls'
+import { TAB_ACTIVE_TINT, TAB_INACTIVE_TINT } from '@/features/demo/ui/controls/TabBar'
 
 /**
  * Palette contrast contract — ported from the phone's
@@ -236,6 +243,17 @@ const LIGHT_GROUNDS: string[][] = [
 ]
 
 /**
+ * The two stacks by name (W4/F85), for the rows whose SUBJECT resolves through `scheme`.
+ *
+ * A row that measures a `colors.*`-derived constant has to measure it on the grounds that same
+ * scheme paints, or it composites the consumed value over the other half's surfaces and reports
+ * a ratio for a pairing nothing renders. Two rows did exactly that and were green only because
+ * the consumed scheme happened to be the one they spelled. Rows whose subject is a NAMED half
+ * (`palette.dark.x`) keep spelling the matching stack — those pairings are deliberate.
+ */
+const GROUNDS = { light: LIGHT_GROUNDS, dark: DARK_GROUNDS } as const
+
+/**
  * Both halves, in report order — the rows that assert per scheme iterate this rather than
  * spelling `['light', 'dark'] as const` at each site (phone `:283`, `:382`).
  */
@@ -385,9 +403,15 @@ describe('palette contrast contract', () => {
     expect(
       offenders(
         [
-          ['dark unchecked mark edge', UNCHECKED_MARK_EDGE, DARK_GROUNDS],
-          // The light half is the flip day's; the constant itself resolves through `scheme`
-          // (ledger §99's class), so the light value is named directly here.
+          // The CONSTANT, on the grounds the consumed scheme actually paints (W4/F85). It
+          // resolves through `scheme` (ledger §99's class), so pairing it with `DARK_GROUNDS`
+          // measured the consumed value over the other half's surfaces the moment the switch
+          // moved — 2.18 against a 3.0 floor, for a pairing no build renders.
+          [`${scheme} unchecked mark edge`, UNCHECKED_MARK_EDGE, GROUNDS[scheme]],
+          // The light half is the flip day's, named directly because the constant cannot be
+          // asked for a half it is not resolved to. Dark's token is bounded next door by row 8
+          // (>= 3.79 on `DARK_GROUNDS`, unconditionally), so both halves stay measured whichever
+          // way the switch points.
           ['light unchecked mark edge', palette.light.textTertiary, LIGHT_GROUNDS],
         ],
         AA_NON_TEXT,
@@ -612,22 +636,25 @@ describe('palette contrast contract', () => {
     // sites: `nestedCard` was `card`'s own gradient at lower alpha, and the surface it
     // composites over IS `card`, so it resolved to a 1.022:1 luminance ratio against its own
     // parent in dark. An inner card was delimited by nothing but its border.
-    const parent = (scheme: 'light' | 'dark') =>
-      scheme === 'dark'
-        ? [GLASS_TIER.dark.card.gradient[1], ...DARK_BG]
-        : [GLASS_TIER.light.card.gradient[1]]
+    // W4/F85 — reverted to the PARAMETER. F84 swept this to `activeScheme === 'dark'` along
+    // with the six genuine module-`scheme` gates, but `scheme` here is this arrow's own
+    // parameter (typed `'light' | 'dark'`, so it never was a TS2367 site): reading the module
+    // switch instead made `parent` ignore its argument and hand BOTH iterations of the table
+    // below the consumed scheme's parent stack. Under dark that is invisible — dark's branch is
+    // what both wanted anyway — which is why it shipped green. `activeScheme` is right for a
+    // gate that asks "is the demo currently dark"; this one asks "which half is this row".
+    const parent = (s: GlassScheme) =>
+      s === 'dark' ? [GLASS_TIER.dark.card.gradient[1], ...DARK_BG] : [GLASS_TIER.light.card.gradient[1]]
 
     // The border is the delimiter in both themes and is what CARRIES the tier in dark, where
     // the fill cannot lift at all (`textTertiary` sits exactly on its 3.79 floor here).
     // Measured against the tier's own fill, worst stop.
     expect(
-      (['light', 'dark'] as const)
-        .map((scheme) => {
-          const tier: GlassTier = GLASS_TIER[scheme].nestedCard
-          const onFill = tier.gradient.map((stop) => [stop, ...parent(scheme)])
-          return { scheme, ratio: round(Math.min(...onFill.map((g) => contrast(tier.border, g)))) }
-        })
-        .filter(({ ratio }) => ratio < 1.25),
+      SCHEMES.map((s) => {
+        const tier: GlassTier = GLASS_TIER[s].nestedCard
+        const onFill = tier.gradient.map((stop) => [stop, ...parent(s)])
+        return { scheme: s, ratio: round(Math.min(...onFill.map((g) => contrast(tier.border, g)))) }
+      }).filter(({ ratio }) => ratio < 1.25),
     ).toEqual([])
 
     // Light additionally separates on the FILL — the channel dark does not have. The tier must
@@ -655,22 +682,29 @@ describe('palette contrast contract', () => {
     // scored 1.24 against the sheet, which is *healthier* than the perfectly fine light-mode
     // tier's 1.19 — near-black and navy can share a luminance while being nothing alike.
     expect(
-      (['light', 'dark'] as const)
-        .map((scheme) => {
-          const sheetTop = GLASS_TIER[scheme].sheet.gradient[0]
-          const under = scheme === 'dark' ? [sheetTop, ...DARK_BG] : [sheetTop]
-          const sheet = flatten(under)
-          // EVERY stop, never `Math.max` of them. Taking the max meant the lower bound only
-          // fired when BOTH stops went flat: an alpha edit touching one stop left the healthy
-          // one reading and passed, while the gradient visually went from a well at one end to
-          // nothing at the other. Each stop is bounded independently.
-          const recessed: GlassTier = GLASS_TIER[scheme].recessed
-          return recessed.gradient.map((stop, index) => ({
-            scheme,
-            stop: index,
-            dE: round(deltaE(flatten([stop, ...under]), sheet)),
-          }))
-        })
+      SCHEMES.map((s) => {
+        const sheetTop = GLASS_TIER[s].sheet.gradient[0]
+        // W4/F85 — the ROW's half, not the module switch. F84 swept this to `activeScheme`
+        // with the genuine module-`scheme` gates, but `scheme` here was this callback's own
+        // parameter. The asymmetry it selects is structural and per-half — dark's `sheet` top
+        // stop is `rgba(0,40,83,0.98)` and NEEDS the opaque app background under it, light's is
+        // `rgba(255,255,255,1)` and must not have one (`LIGHT_GROUNDS` omits it for the same
+        // reason). Reading the module switch gave both halves the consumed one's answer, so on
+        // the flip the dark iteration bottomed out on a 0.98 stop and `flatten` threw
+        // "the bottom ground must be opaque" — the guard at `:138` catching F84's own edit.
+        const under = s === 'dark' ? [sheetTop, ...DARK_BG] : [sheetTop]
+        const sheet = flatten(under)
+        // EVERY stop, never `Math.max` of them. Taking the max meant the lower bound only
+        // fired when BOTH stops went flat: an alpha edit touching one stop left the healthy
+        // one reading and passed, while the gradient visually went from a well at one end to
+        // nothing at the other. Each stop is bounded independently.
+        const recessed: GlassTier = GLASS_TIER[s].recessed
+        return recessed.gradient.map((stop, index) => ({
+          scheme: s,
+          stop: index,
+          dE: round(deltaE(flatten([stop, ...under]), sheet)),
+        }))
+      })
         .flat()
         .filter(({ dE }) => dE < 3 || dE > 12),
     ).toEqual([])
@@ -807,7 +841,7 @@ describe('map chrome contrast floors', () => {
    * because light's tiers are opaque, exactly as `LIGHT_GROUNDS` does.
    */
   const SHEET_GROUNDS: string[][] =
-    scheme === 'dark' ? stops(GLASS_TIER.dark.sheet, DARK_BG) : stops(GLASS_TIER.light.sheet)
+    activeScheme === 'dark' ? stops(GLASS_TIER.dark.sheet, DARK_BG) : stops(GLASS_TIER.light.sheet)
   const TILES: ReadonlyArray<readonly [string, string]> = [
     ['a bright daylight tile', '#ffffff'],
     ['a night tile', '#000000'],
@@ -821,11 +855,21 @@ describe('map chrome contrast floors', () => {
     // Read off `MAP_FILTER_BADGE_FILL`, the constant `MapControls` paints with, NOT off
     // `palette.primaryDark`: a pin against the palette stays green through exactly the edit it
     // exists to catch (U0.5's `SwipeDeleteAction` lesson).
-    expect(round(contrast(palette.dark.onPrimary, [MAP_FILTER_BADGE_FILL]))).toBeGreaterThanOrEqual(AA_TEXT)
+    expect(round(contrast(palette[scheme].onPrimary, [MAP_FILTER_BADGE_FILL]))).toBeGreaterThanOrEqual(AA_TEXT)
     // …and the phone's own pairing is the failure this diverged from. 3.73 is not a rounding
     // artefact of the line above; it is a different, worse colour.
+    //
+    // F85 objector: this line is a DARK-HALF historical fact and stays spelled dark. It records
+    // what the phone's `primary` measured under `onPrimary` — the number the divergence was
+    // granted on — not a property of whatever half the demo currently renders.
     expect(round(contrast(palette.dark.onPrimary, [palette.dark.primary]))).toBe(3.73)
-    expect(round(contrast(palette.dark.onPrimary, [MAP_FILTER_BADGE_FILL]))).toBe(5.8)
+    // The badge's own figure, per half (W4/F85). `MAP_FILTER_BADGE_FILL` resolves through
+    // `scheme` (`MapControls.tsx:105` — `colors.primaryDark`), so a single dark figure made this
+    // row red on the flip. Kept as an EXACT number rather than relaxed to the bound above,
+    // because "a different, worse colour" is the claim and a `>= 4.5` says nothing about how
+    // much better. Both measured; light's `primaryDark` is Blue 800, which is why it is higher.
+    const BADGE_NUMERAL = { dark: 5.8, light: 8.72 } as const
+    expect(round(contrast(palette[scheme].onPrimary, [MAP_FILTER_BADGE_FILL]))).toBe(BADGE_NUMERAL[scheme])
   })
 
   it('rows 42 + 44: the search text and the proximity chip clear AA over both tiles', () => {
@@ -842,7 +886,11 @@ describe('map chrome contrast floors', () => {
     // The map island carried its own `#e7eef6` "primary text" until U5.1 (demo §1.3's
     // split-brain). Rows 42/44 measure `MAP_GLASS_COLORS.text`; this is what stops that
     // reading from drifting off `colors.text` while the ratio stays plausible.
-    expect(MAP_GLASS_COLORS.text).toBe(palette.dark.text)
+    // Resolved through `scheme` (W4/F85): `MAP_GLASS_COLORS.text` is `colors.text`
+    // (`mapTokens.ts:119`), so spelling the dark half made this red on the flip. Still the pin
+    // the comment describes — it reds the moment the reading is re-spelled as a literal, which
+    // is the `#e7eef6` split-brain U5.1 deleted.
+    expect(MAP_GLASS_COLORS.text).toBe(palette[scheme].text)
   })
 
   // ROW 43 — the search placeholder. STILL TODO after U5.2, on a refuted premise, and the
@@ -907,11 +955,17 @@ describe('map chrome contrast floors', () => {
    * GPU to keep blending the live map behind it on every drag frame). So the two distinct grounds
    * a sheet surface can sit on are those two palette values, with nothing showing through.
    */
-  const MAP_SHEET_STOPS = [palette[scheme].background, palette[scheme].backgroundSecondary]
-  /** …and a nested info card on top of either of them. */
-  const SHEET_NESTED_GROUNDS: string[][] = MAP_SHEET_STOPS.flatMap((stop) =>
-    stops(GLASS_TIER[scheme].nestedCard, [stop]),
-  )
+  const mapSheetStops = (s: GlassScheme) => [palette[s].background, palette[s].backgroundSecondary]
+  /**
+   * …and a nested info card on top of either of them.
+   *
+   * A FUNCTION of the half since W4/F85, because the rows below need two different ones: the
+   * live bounds measure the constants on the scheme the demo consumes, while the divergence
+   * figure beneath them records a DARK-half fact and has to keep its own ground.
+   */
+  const sheetNestedGrounds = (s: GlassScheme): string[][] =>
+    mapSheetStops(s).flatMap((stop) => stops(GLASS_TIER[s].nestedCard, [stop]))
+  const SHEET_NESTED_GROUNDS = sheetNestedGrounds(scheme)
 
   // Rows 46 + 47 (W3/F52) — the two map-sheet surfaces U5.4 moved onto `colors.primary` as TEXT.
   //
@@ -935,7 +989,15 @@ describe('map chrome contrast floors', () => {
     // The phone's pairing IS the failure this diverges from, recorded as an exact figure the way
     // row 41 records the badge's 3.73. Not a rounding artefact of the bound above — a different,
     // worse colour, and one that was WORSE THAN THE #00BFFF it replaced (5.07 on this ground).
-    expect(round(worst(palette[scheme].primary, SHEET_NESTED_GROUNDS))).toBeLessThan(AA_TEXT)
+    //
+    // F85 objector: spelled DARK on dark grounds. The failure F52 diverged from is dark's —
+    // dark `primary` is the mid-tone `#2B8CC1` and measures 3.06 here. Light's `primary` is Blue
+    // 900 `#1e3a8a`, a near-black navy that measures 8.29 on light's nested tier and would sail
+    // through this bound, so a scheme-relative spelling turns the assertion into its own
+    // negation on the flip: "the value we rejected is fine". The rejection is a fact about one
+    // half, and `MAP_CONTACT_ROW.color` is tied to `palette[scheme].link` two lines up, so both
+    // halves stay pinned whichever way the switch points.
+    expect(round(worst(palette.dark.primary, sheetNestedGrounds('dark')))).toBeLessThan(AA_TEXT)
   })
 
   // Row 48 (W3/F79) - the claim rows 46+47 made and did not measure.
@@ -963,6 +1025,58 @@ describe('map chrome contrast floors', () => {
     expect(AA_NON_TEXT).toBeLessThan(AA_TEXT)
   })
 
+  // Row 49 (W4/F87) - the tab bar's two tints, the claim U8.3 made and did not measure.
+  //
+  // U8.3 ported the bar to the phone's `tabBarStyle` verbatim: a flat `card` fill with
+  // `primary` active / `textSecondary` inactive (`app/(tabs)/_layout.tsx:13-19`). The inactive
+  // half went 2.84 -> 5.82 and is a clear win; the ACTIVE half went 4.51 -> 3.14 and became the
+  // dimmest of the four icons - the selection cue is the least prominent mark in a bar that has
+  // no labels to carry the tint the way the phone's do. Same shape as row 48 one wave earlier,
+  // and the same reason: an assertion about a ratio that nobody bounded.
+  it('row 49: BOTH tab-bar tints clear the NON-TEXT floor on the bar`s own fill (W4/F87)', () => {
+    // The bar is a FLAT `colors.card` fill (U8.3 - the demo's old gradient had no phone
+    // counterpart), so the ground is one stop, not a glass stack. Both icons are non-text
+    // MARKS: this bar renders glyphs only, so 1.4.11's 3:1 governs.
+    const BAR = [[palette[scheme].card]]
+    // 3.14 in the consumed scheme - over the floor by 0.14. That margin is the point of
+    // the bound: it survives no re-tint, and without this row a palette move that ate it would
+    // be a device-pass discovery with every suite green.
+    expect(round(worst(TAB_ACTIVE_TINT, BAR))).toBeGreaterThanOrEqual(AA_NON_TEXT)
+    expect(round(worst(TAB_INACTIVE_TINT, BAR))).toBeGreaterThanOrEqual(AA_NON_TEXT)
+
+    // AT THE CONSTANT, both sides (W2/F27) - the same shape as row 48. The bound alone says
+    // nothing about WHICH value is present, and here the negative is what carries the finding:
+    // the active tint must stay distinguishable from the inactive one, because `aria-current`
+    // is the only OTHER cue and it is invisible to a sighted visitor.
+    expect(TAB_ACTIVE_TINT).toBe(palette[scheme].primary)
+    expect(TAB_INACTIVE_TINT).toBe(palette[scheme].textSecondary)
+    expect(TAB_ACTIVE_TINT).not.toBe(TAB_INACTIVE_TINT)
+
+    // ...and the floor is the NON-TEXT one. 3.14 would FAIL as text, which is exactly why this
+    // row cannot be collapsed into an `AA_TEXT` bound and called green - and it is the figure
+    // behind the OWNER DEVICE-PASS item this row records rather than fixes: the ACTIVE mark is
+    // dimmer than the inactive one (3.14 < 5.82), a perceptual inversion of what a selection
+    // cue should be. Phone-verbatim, so not re-tinted at this desk.
+    expect(AA_NON_TEXT).toBeLessThan(AA_TEXT)
+
+    // F85 objector (W4/F90): the inversion is a DARK-HALF fact, so the relation is gated to the
+    // dark half and joins the manifest's §3 deliberate-dark list. Ungated it was a clause-12
+    // objector of exactly the class F85 exists to remove — and the WORST kind, because it reds
+    // when the product IMPROVES: in light the inversion CORRECTS (active 10.36, inactive 7.56)
+    // and a pin spelling `active < inactive` fails on the good news. Measured under the flip:
+    // `AssertionError: expected 10.36 to be less than 7.56`.
+    //
+    // GATED, not deleted, and not downgraded to the `!==` two lines above (the delta's other
+    // shape). That `not.toBe` compares the two TOKENS; this compares their measured RATIOS on
+    // the bar's own fill, which is the whole finding — 3.14 vs 5.82, the active selection cue
+    // being the dimmest mark in a label-less bar. It is the figure behind the OWNER DEVICE-PASS
+    // item, it is phone-verbatim so not re-tinted here, and a comment cannot red when a palette
+    // move quietly ends it. Under `activeScheme` it stays falsifiable exactly where it is true.
+    if (activeScheme === 'dark') {
+      expect(round(worst(TAB_ACTIVE_TINT, BAR))).toBeLessThan(round(worst(TAB_INACTIVE_TINT, BAR)))
+    }
+  })
+
   it('row 45b (F60): the sheet`s HINT is body text and clears the same floor', () => {
     // D5's rider is "do not ADD new `textTertiary` text". The rider exists because that token
     // carries a documented CEILING two cases up (3.79 dark / 3.87 light) — an inherited
@@ -985,12 +1099,20 @@ describe('the settings pane`s live-value readout (U6.2 / F52, ledger §89)', () 
     // above: a pin against `palette.link` would stay green through a re-point of the readout,
     // which is exactly the edit this row exists to catch.
     expect(PANE_VALUE_TINT).toBe(palette[scheme].link)
-    expect(round(worst(PANE_VALUE_TINT, DARK_GROUNDS))).toBeGreaterThanOrEqual(AA_TEXT)
+    // On the grounds the consumed scheme paints (W4/F85). `PANE_VALUE_TINT` is `colors.link`
+    // (`_pane-chrome.tsx:123`), so `DARK_GROUNDS` measured the consumed value over the other
+    // half's surfaces on the flip — 1.21 against a 4.5 floor, for a pairing nothing renders.
+    expect(round(worst(PANE_VALUE_TINT, GROUNDS[scheme]))).toBeGreaterThanOrEqual(AA_TEXT)
 
     // …and the divergence is bounded from the other side. 3.94 is not a rounding artefact of
     // the line above; it is a different, worse colour, and it is §89's headline number.
+    //
+    // F85 objector: BOTH lines are dark-half facts and stay spelled dark — they are one pair on
+    // one ground, and §89's headline number only means anything beside the value it was rejected
+    // against. `PANE_VALUE_TINT`'s own identity is pinned scheme-relatively two lines up, so a
+    // re-point of the readout still reds; `palette.dark.link` here is the archived measurement.
     expect(round(contrast(palette.dark.primary, DARK_BG))).toBe(3.94)
-    expect(round(contrast(PANE_VALUE_TINT, DARK_BG))).toBe(9.6)
+    expect(round(contrast(palette.dark.link, DARK_BG))).toBe(9.6)
   })
 })
 
@@ -1218,5 +1340,95 @@ describe('D12: every provenance mark stays distinct from the ported warning fami
 
   it.each(MARKS)('%s: is legible on the ground it renders on', (_n, mark, ground) => {
     expect(round(contrast(mark.foreground, [mark.background, ...ground]))).toBeGreaterThan(AA_TEXT)
+  })
+})
+
+/**
+ * The boot gate — matrix A87 and §C.2's two scanner rows, added by U8.1.
+ *
+ * This is the surface v1 shipped with zero shared tokens, and the one place in the demo where
+ * a contrast pin written against a hard-coded ground has already failed silently once: the
+ * disclosure's `alpha >= 0.65` floor could not see decision **D8** lighten the ground under it
+ * (`parity/p8/lane-tests.md:408` predicted exactly that). Every row below measures against
+ * `SCANNER_GROUND` itself, imported from the module the gate paints from, so lightening the
+ * ground again reds these rather than the arithmetic in a comment going stale.
+ */
+describe('scanner HUD (A87 / U8.1)', () => {
+  const STATES = Object.keys(SCANNER_COLORS) as (keyof typeof SCANNER_COLORS)[]
+
+  // Anti-vacuity for every `it.each` below: an empty state list would make all of them pass.
+  it('sweeps all three HUD states', () => {
+    expect(STATES).toEqual(['idle', 'scanning', 'authorized'])
+  })
+
+  // §C.2: "Scanner ACCESS GRANTED 2.30 -> 7.29". The 7.29 reproduces exactly, on
+  // `authorized.text`. The `text` role is EVERY string on this surface in the demo, not just
+  // the sub-label — the phone spends `primary` on its 26px status line under the WCAG
+  // large-text allowance (3:1 at 3.94, `scanner-hud-constants.ts:40-41`) and the demo's line is
+  // 23px, where that allowance does not apply. deferred.md §89 / W3 F52 is the same finding
+  // reached from the other side.
+  it.each(STATES)('%s: its `text` clears the AA text floor on the gate ground', (state) => {
+    expect(round(contrast(SCANNER_COLORS[state].text, [SCANNER_GROUND]))).toBeGreaterThanOrEqual(AA_TEXT)
+  })
+
+  // The marks — brackets, sweep line, halo. 1.4.11's 3:1, which is the floor `primary` is
+  // ALLOWED to sit at and text is not. Pinning both floors is what makes the split a contract
+  // rather than a convention: collapsing every string onto `primary` reds the row above, and
+  // "fixing" the marks onto `text` is caught by SplashScreen's own render pins.
+  it.each(STATES)('%s: its `primary` clears the non-text floor on the gate ground', (state) => {
+    expect(round(contrast(SCANNER_COLORS[state].primary, [SCANNER_GROUND]))).toBeGreaterThanOrEqual(AA_NON_TEXT)
+  })
+
+  it('the accent is a MARK colour here, never a text colour (deferred §89)', () => {
+    // The measured half of §89, asserted rather than narrated: `primary` as a string on this
+    // ground is 3.94, and the row's own trigger is "any site still measuring < 4.5 reopens this
+    // at HIGH". If a future palette move makes the accent legible as text this reds, and the
+    // right response is to delete this pin — not to re-point the strings back.
+    expect(round(contrast(palette.dark.primary, [SCANNER_GROUND]))).toBeLessThan(AA_TEXT)
+    for (const state of STATES) {
+      if (SCANNER_COLORS[state].text === SCANNER_COLORS[state].primary) continue
+      expect(round(contrast(SCANNER_COLORS[state].text, [SCANNER_GROUND]))).toBeGreaterThanOrEqual(AA_TEXT)
+    }
+  })
+
+  // D8's live consequence. The disclosure is the string carrying the surface's honesty claim,
+  // and P8 review R-6 is the record of it shipping as the LEAST readable text on a screen full
+  // of decoration. On the retired `#000314` its 0.70 alpha measured 5.27; on `SCANNER_GROUND`
+  // the same alpha measures 4.31 — under the floor — which is why U8.1 moved it to 0.80/5.19.
+  it('the simulation disclosure clears the AA text floor over the ported ground (D8, R-6)', () => {
+    expect(round(contrast(SCANNER_DISCLOSURE_TEXT, [SCANNER_GROUND]))).toBeGreaterThanOrEqual(AA_TEXT)
+  })
+
+  it('and stays subordinate to the HUD strings it captions', () => {
+    // The other half of R-6's reasoning, which the alpha floor also could not express: full
+    // opacity would make the caption exactly as loud as the status line, and the fix for an
+    // unreadable disclosure is not to promote it above the UI it is disclaiming.
+    expect(round(contrast(SCANNER_DISCLOSURE_TEXT, [SCANNER_GROUND]))).toBeLessThan(
+      round(contrast(SCANNER_COLORS.idle.text, [SCANNER_GROUND])),
+    )
+  })
+
+  // The SKIP pill floats at `zIndex: 2` over an intro video of unknown content (`BOOT_VIDEO`,
+  // the D7 drop-in), so it is rows 36-37's contract, not the sheet backdrop's — measured over a
+  // white AND a black frame for the same reason the media chip is.
+  it('keeps the SKIP label legible over the brightest intro frame', () => {
+    expect(
+      [
+        ['SKIP over a white frame', '#ffffff'],
+        ['SKIP over a black frame', '#000000'],
+        ['SKIP over the gate itself', SCANNER_GROUND],
+      ]
+        .map(([label, frame]) => [label, round(contrast(SCANNER_SKIP_PILL.label, [SCANNER_SKIP_PILL.fill, frame]))] as const)
+        .filter(([, ratio]) => ratio < AA_TEXT),
+    ).toEqual([])
+  })
+
+  it('and the pill fill is NOT the backdrop token — plan §5 U8.1 said scrim; scrim measures 1.02', () => {
+    // The deviation, asserted so it cannot be quietly undone. `scrim` is a 0.32 dim tuned for a
+    // sheet over the app's own ground; under a white frame it leaves the label at 1.02, worse
+    // than the `rgba(4,8,14,0.55)` it would have replaced (2.07). This is the identical
+    // regression rows 36-37b pin for the media chip, on the identical token.
+    expect(SCANNER_SKIP_PILL.fill).not.toBe(palette.dark.scrim)
+    expect(round(contrast(SCANNER_SKIP_PILL.label, [palette.dark.scrim, '#ffffff']))).toBeLessThan(AA_TEXT)
   })
 })

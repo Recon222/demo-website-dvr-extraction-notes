@@ -1,5 +1,13 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+// Controlled seam for motion/react's useReducedMotion — see the ExportHub precedent (R-23): the
+// real hook latches a module-global on first use, so the setup file's `matches: false` matchMedia
+// stub pins it and a per-test override cannot flip it.
+const motionState = vi.hoisted(() => ({ reduce: false as boolean | null }))
+vi.mock('motion/react', async (orig) => ({
+  ...(await orig<typeof import('motion/react')>()),
+  useReducedMotion: () => motionState.reduce,
+}))
+import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import {
   ExportActionSheet,
   type ExportActionSheetProps,
@@ -46,6 +54,28 @@ describe('ExportActionSheet — chrome', () => {
   it("falls back to the phone component's own default title", () => {
     renderSheet()
     expect(screen.getByText('Export Options')).toBeInTheDocument()
+  })
+
+  // W4/F86. `GlassBottomSheet` — this sheet's own sibling, on the same `sheetUp` keyframe —
+  // gates it; this one is a hand-rolled copy that missed the treatment. A sheet that slides up
+  // from off-screen is vestibular motion, not decoration.
+  it('drops the sheetUp entrance under prefers-reduced-motion, keeping the sheet', () => {
+    renderSheet({ title: 'Choose Export Scope' })
+    expect(screen.getByRole('menu').style.animation).toContain('sheetUp')
+
+    motionState.reduce = true
+    try {
+      cleanup()
+      renderSheet({ title: 'Choose Export Scope' })
+      const sheet = screen.getByRole('menu')
+      expect(sheet.style.animation).toBe('')
+      // It must still be a menu, still titled, still holding its options — the sheet arrives
+      // instantly rather than not at all.
+      expect(sheet).toHaveAccessibleName('Choose Export Scope')
+      expect(screen.getAllByRole('menuitem')).toHaveLength(OPTIONS.length)
+    } finally {
+      motionState.reduce = false
+    }
   })
 })
 

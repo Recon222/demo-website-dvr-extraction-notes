@@ -4,7 +4,7 @@ import { ExtractedScopeScreen } from 'open-pro-next'
 
 function Phone({ children }: { children: React.ReactNode }) {
   return (
-    <div data-demo-root style={{ background: '#0d1b2a', width: 378, fontFamily: 'system-ui', overflow: 'hidden' }}>
+    <div data-demo-root style={{ background: '#002853', width: 378, fontFamily: 'system-ui', overflow: 'hidden' }}>
       {children}
     </div>
   )

@@ -2,9 +2,36 @@
 // chips + location pills. Variant axis = populated timeline vs empty.
 import { DashboardScreen } from 'open-pro-next'
 
-const draft = { label: 'Draft', color: '#ffd93d', bg: 'rgba(255,217,61,0.12)', border: 'rgba(255,217,61,0.3)' }
-const complete = { label: 'Complete', color: '#10d177', bg: 'rgba(16,209,119,0.12)', border: 'rgba(16,209,119,0.3)' }
-const archived = { label: 'Archived', color: '#7a9fc4', bg: 'rgba(122,159,196,0.12)', border: 'rgba(122,159,196,0.3)' }
+/* `StatusTheme` is `{ label } & SeverityTone` (`screens/screenData.ts:18-20`), and `SeverityTone`
+   is `{ background, borderColor, color, accent }` (`tokens/status.ts:98-110`). This preview
+   carried the PRE-U3.1 shape (`color`/`bg`/`border`) — three renamed keys and one missing key,
+   invisible until W4/F82 put the previews in a tsc program.
+
+   Values are `severityTone()`'s own composition (`tokens/status.ts:120-124`) resolved for the
+   consumed dark scheme, cited per token; `archived` is `neutralTone()` (`:138-142`), whose
+   background is `withAlpha(textSecondary, NEUTRAL_TINT_ALPHA)` — `#99badd` at 0.15 (`:129`).
+   Literals, because previews resolve `'open-pro-next'` and it exports only pinned components. */
+const draft = {
+  label: 'Active', // `caseStatusTheme`'s DRAFT->"Active" rename (screenData.ts:36)
+  background: '#7d5f10', // colors.warningLight   — palette.ts:130
+  borderColor: '#ffd93d', // colors.warning       — palette.ts:129
+  color: '#f0f4f8', // colors.warningOnLight      — palette.ts:137
+  accent: '#ffc62b', // colors.warningAccent      — palette.ts:135 (SEVERITY_ACCENT.warning)
+}
+const complete = {
+  label: 'Complete',
+  background: '#0f6b42', // colors.successLight   — palette.ts:126
+  borderColor: '#10d177', // colors.success       — palette.ts:125
+  color: '#f0f4f8', // colors.successOnLight      — palette.ts:138
+  accent: '#0faa5e', // colors.successDark        — palette.ts:127 (SEVERITY_ACCENT.success)
+}
+const archived = {
+  label: 'Archived',
+  background: 'rgba(153, 186, 221, 0.15)', // withAlpha(colors.textSecondary, 0.15) — status.ts:139
+  borderColor: '#1c4e84', // colors.border        — palette.ts:117
+  color: '#f0f4f8', // colors.text                — palette.ts:104
+  accent: '#99badd', // colors.textSecondary      — palette.ts:106
+}
 
 const CASES = [
   {
@@ -46,13 +73,13 @@ const CASES = [
 ]
 
 function Phone({ children }: { children: React.ReactNode }) {
-  return <div data-demo-root style={{ background: '#0d1b2a', width: 378, fontFamily: 'system-ui', overflow: 'hidden' }}>{children}</div>
+  return <div data-demo-root style={{ background: '#002853', width: 378, fontFamily: 'system-ui', overflow: 'hidden' }}>{children}</div>
 }
 
 export function Timeline() {
   return (
     <Phone>
-      <DashboardScreen cases={CASES} onOpenLocation={() => {}} />
+      <DashboardScreen cases={CASES} onOpenLocation={() => {}} onCaseActions={() => {}} onSettings={() => {}} />
     </Phone>
   )
 }
@@ -60,7 +87,7 @@ export function Timeline() {
 export function Empty() {
   return (
     <Phone>
-      <DashboardScreen cases={[]} onOpenLocation={() => {}} />
+      <DashboardScreen cases={[]} onOpenLocation={() => {}} onCaseActions={() => {}} onSettings={() => {}} />
     </Phone>
   )
 }

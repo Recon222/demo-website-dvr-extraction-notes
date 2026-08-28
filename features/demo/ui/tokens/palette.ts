@@ -30,8 +30,17 @@
  *     `*Dark` names invert between schemes on purpose, which is exactly why the phone made
  *     it a lookup instead of two literals; U2.2.
  *
- * The grid tokens and `scrim` arrive with the packages that create their web-side consumers
- * (U8.2, U4.4). The status-tone family landed with U3.1 and is here now.
+ * `scrim` landed with U4.4 and the status-tone family with U3.1; both are here now.
+ *
+ * Of the phone's THREE grid tokens (`Colors.ts:52-54` / `:158-160`) U8.2 ports exactly ONE.
+ * `gridSubtle` is the app-wide default and the demo has a consumer for it — `GLASS.gridOverlay`,
+ * which paints the phone frame and every modal sheet. `grid` (A11) and `gridLight` (A12) have
+ * NO web-side surface: the demo never rendered a second or third grid weight, and A12's own
+ * matrix row records the demo side as "None". Adding them here would create two tokens nothing
+ * reads and — because `PALETTE_KEYS`' membership pin forces an anchor per key — two drift-guard
+ * rows over values no demo pixel depends on. Plan §6.6 gate 1 forbids exactly that, and D3
+ * ("leave unique unchanged literals alone") points the same way. They stay unported until a
+ * demo surface needs a second grid weight; that surface's package ports them.
  *
  * ## The naming trap — read this before spending a `*Light` token (phone §1.2, note 2)
  *
@@ -81,6 +90,14 @@ const dark = {
   border: '#1c4e84', // Colors.ts:153
   borderLight: '#2e5f97', // Colors.ts:154
   borderDark: '#063d72', // Colors.ts:155
+
+  // The grid (A10, U8.2). `GLASS.gridOverlay` composes both of its repeating gradients from
+  // this one token, so the phone frame's ambient grid and every modal sheet's move together.
+  //
+  // SPACED, like `overlay`/`scrim` below and unlike the demo's own rgba literals: this is
+  // lifted verbatim from `Colors.ts:158` and nothing here is re-spelled. The drift guard's
+  // `norm` strips whitespace on both sides, and `glass-tokens.test.ts`'s sweep does too.
+  gridSubtle: 'rgba(153, 186, 221, 0.11)', // Colors.ts:158 — app-wide default grid opacity
 
   // Status (A28). NOTE the naming trap, phone §1.2 note 3: in DARK the `*Light` names are
   // the DARK BACKGROUND TONE a matching `*OnLight` foreground sits on — they are not
@@ -176,6 +193,10 @@ const light = {
   borderLight: '#f3f4f6', // Colors.ts:46 — Gray 100
   borderDark: '#d1d5db', // Colors.ts:47 — Gray 300
 
+  // Navy lines over the white ground, derived from light's `primary` rgb(30,58,138) — the
+  // phone's own comment at `Colors.ts:49-51`. NOT dark's value at another alpha.
+  gridSubtle: 'rgba(30, 58, 138, 0.06)', // Colors.ts:52
+
   success: '#10b981', // Colors.ts:57 — Green 500
   successLight: '#d1fae5', // Colors.ts:58 — Green 100, the pale background tone
   successDark: '#059669', // Colors.ts:59 — Green 600
@@ -239,3 +260,34 @@ export type ColorScheme = keyof typeof palette
  */
 export const scheme = 'dark' satisfies ColorScheme
 export const colors = palette[scheme]
+
+/**
+ * SEAM(W4/F84): `scheme` WIDENED to the union, for `=== 'dark'` gates that must survive the flip.
+ *
+ * The problem this closes. `scheme`'s type is the LITERAL `'dark'` (the `satisfies` above, for the
+ * reason the docblock gives). TypeScript therefore reads `scheme === 'dark'` as a comparison
+ * between `'dark'` and `'dark'` — fine today, and **TS2367 "This comparison appears unintentional
+ * because the types have no overlap" the moment the switch is flipped to `'light'`**. Six sites
+ * carry that shape and every one of them fails the flip's compile leg (W4/F84): four production
+ * (`button-recipe.ts:181,186`, `sheet-chrome.ts:227,242` — the W2/F34 dark-only gates) and two
+ * test (`__tests__/palette-contrast.test.ts`, `controls/__tests__/sheet-chrome.test.tsx`).
+ *
+ * Why widen HERE and not at the export. Annotating `scheme: ColorScheme` would fix all six in one
+ * line, and it compiles — measured, tsc exit 0 at `de1cd33`. It is still the wrong line: it makes
+ * `colors` the UNION `typeof dark | typeof light`, so every consumer's inferred type widens
+ * (`colors.background` becomes `'#002853' | '#ffffff'` rather than `'#002853'`), which is exactly
+ * what the docblock above says `satisfies` was chosen to prevent — *"no consumer's inferred type
+ * moved by a character"*. W4/F84's own prescription is explicit for the same reason: **"widen the
+ * comparison, not the export ... keeping `scheme`'s literal type for the `satisfies typeof`
+ * devices that depend on it."** So the widening gets its own name and stays opt-in.
+ *
+ * A typed `const`, NOT a cast. `(scheme as ColorScheme) === 'dark'` silences the same error, but a
+ * cast is an unchecked claim: if `scheme` ever stopped being a `ColorScheme` the cast would keep
+ * lying, while this binding fails to compile. Same reason `light` is `satisfies
+ * Record<PaletteToken, string>` rather than annotated.
+ *
+ * A gate spelled `activeScheme === 'dark'` reads as *"is the scheme currently dark"* — a runtime
+ * question with two possible answers — which is what these four production sites actually mean:
+ * each paints a shadow the phone ships under `isDark && {...}` and must NOT paint on white.
+ */
+export const activeScheme: ColorScheme = scheme

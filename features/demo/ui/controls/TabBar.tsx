@@ -2,12 +2,35 @@
 
 import type { CSSProperties, ReactNode } from 'react'
 import { TAB_LABELS, TAB_VIEWS, type TabView } from '@/features/demo/engine/content/screens'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /** The tab bar's id space, sourced from the registry (kept as the module's public name). */
 export type TabId = TabView
 
-/** Single source of truth for the bottom tab bar's height — overlays sit flush above it (no seam). */
+/**
+ * Single source of truth for the bottom tab bar's height — overlays sit flush above it (no seam).
+ *
+ * **Decision D6: this 50 STAYS and is a documented divergence, not drift.** The phone sets NO
+ * height — `app/(tabs)/_layout.tsx:15-19`'s `tabBarStyle` has `backgroundColor`, `borderTopColor`
+ * and `paddingTop` and nothing else, so the bar takes `@react-navigation/bottom-tabs`' platform
+ * default plus the safe-area inset. There is no number to port. Three overlays bottom-align
+ * against this export (`export/ExportHub.tsx:66`, `map/CaseMapPicker.tsx:149`,
+ * `map/MapBottomSheet.tsx:125`), and the demo's phone frame has no safe-area inset to resolve.
+ */
 export const TAB_BAR_HEIGHT = 50
+
+/**
+ * The two icon tints, the phone's `tabBarActiveTintColor` / `tabBarInactiveTintColor`
+ * (`app/(tabs)/_layout.tsx:13-14`).
+ *
+ * EXPORTED so `__tests__/palette-contrast.test.ts` row 49 can bound them at the constant
+ * rather than retyping the hexes — the `DangerFill` lesson that file's docblock records: a
+ * duplicated literal in the pin stays green through exactly the edit it exists to catch.
+ * Both are non-text MARKS (there are no labels in this bar), so 1.4.11's 3:1 governs, not
+ * 1.4.3's 4.5. Measured on the bar's own `card` fill: active 3.14, inactive 5.82.
+ */
+export const TAB_ACTIVE_TINT = colors.primary
+export const TAB_INACTIVE_TINT = colors.textSecondary
 
 const tab: CSSProperties = {
   flex: 1,
@@ -31,24 +54,24 @@ const tab: CSSProperties = {
  */
 const TAB_ICONS: Record<TabView, (stroke: string, sw: number) => ReactNode> = {
   dashboard: (stroke, sw) => (
-    <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="4" width="18" height="12" rx="2" />
       <path d="M8 20h8M12 16v4" />
     </svg>
   ),
   cases: (stroke) => (
-    <svg width="25" height="25" viewBox="0 0 24 24" fill={stroke}>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill={stroke}>
       <path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z" />
     </svg>
   ),
   map: (stroke, sw) => (
-    <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
       <path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V3l-6 2.5L9 4z" />
       <path d="M9 4v13.5M15 6.5V20" />
     </svg>
   ),
   export: (stroke, sw) => (
-    <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="4" width="18" height="4" rx="1" />
       <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8" />
       <path d="M10 12h4" />
@@ -72,9 +95,16 @@ export function TabBar({ active, onSelect }: { active: TabView; onSelect(tab: Ta
         height: TAB_BAR_HEIGHT,
         boxSizing: 'border-box',
         zIndex: 18,
-        background: 'linear-gradient(180deg,#1e3450,#16283c)',
-        borderTop: '1px solid #28456b',
-        padding: '8px 0 12px',
+        // A63/U8.3 — the phone's `tabBarStyle` verbatim (`app/(tabs)/_layout.tsx:15-19`):
+        // a FLAT `colors.card` fill (the demo's `linear-gradient(180deg,#1e3450,#16283c)` had
+        // no phone counterpart), `colors.border` hairline, `paddingTop: Layout.spacing.xsm`
+        // (= 6). `backgroundColor` rather than the `background` shorthand so the flatness is
+        // structural: a later gradient would have to delete a longhand, not just win a cascade.
+        // The 12px BOTTOM padding is demo-only — it is what centres the icons inside D6's
+        // fixed 50px, which the phone's inset-driven bar does not have.
+        backgroundColor: colors.card,
+        borderTop: `1px solid ${colors.border}`,
+        padding: '6px 0 12px',
         display: 'flex',
         alignItems: 'stretch',
         boxShadow: '0 -6px 18px rgba(0,0,0,0.28)',
@@ -86,15 +116,20 @@ export function TabBar({ active, onSelect }: { active: TabView; onSelect(tab: Ta
           type="button"
           aria-label={TAB_LABELS[id]}
           // The active tab was signalled by HUE ALONE across four destinations (WCAG 1.4.1 /
-          // 4.1.2) — invisible to a screen reader and to anyone who can't separate #4BA3D4 from
-          // #5d7a9a. `aria-current="page"` is the destination idiom (and what React Navigation
-          // gives the phone's own tab bar for free); §67c's `aria-pressed` stays with the media
-          // library's FILTER strip, which toggles what one sheet shows rather than navigating.
+          // 4.1.2) — invisible to a screen reader and to anyone who can't separate the active
+          // tint from the inactive one. `aria-current="page"` is the destination idiom (and what
+          // React Navigation gives the phone's own tab bar for free); §67c's `aria-pressed`
+          // stays with the media library's FILTER strip, which toggles what one sheet shows
+          // rather than navigating. The port did not change this: it swapped WHICH two hues
+          // are indistinguishable, so the announcement is still the only non-visual cue.
           aria-current={active === id ? 'page' : undefined}
           onClick={() => onSelect(id)}
           style={tab}
         >
-          {TAB_ICONS[id](active === id ? '#4BA3D4' : '#5d7a9a', active === id ? 1.9 : 1.8)}
+          {/* `tabBarActiveTintColor` / `tabBarInactiveTintColor` (`(tabs)/_layout.tsx:13-14`).
+              The two stroke widths are demo-only: the phone carries no `tabBarIconStyle` and
+              Ionicons has no weight axis, so 1.9/1.8 has nothing to port against. */}
+          {TAB_ICONS[id](active === id ? TAB_ACTIVE_TINT : TAB_INACTIVE_TINT, active === id ? 1.9 : 1.8)}
         </button>
       ))}
     </div>
