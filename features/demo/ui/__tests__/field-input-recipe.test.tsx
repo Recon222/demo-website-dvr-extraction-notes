@@ -283,7 +283,7 @@ describe('SubmissionScreen — screens/SubmissionScreen.tsx (U2.1 / A72, D10)', 
         fields={fields}
         isFieldVisible={() => true}
         onChange={vi.fn()}
-        onNext={vi.fn()}
+        nextLabel="Next: Test Step" onNext={vi.fn()}
         onBack={vi.fn()}
         onMenu={vi.fn()}
         onCoordinates={vi.fn()}

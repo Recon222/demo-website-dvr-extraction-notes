@@ -119,6 +119,31 @@ export function nextVisibleChapter(id: ChapterId, v: FormVisibility): ChapterId 
   return visible.find((c) => CHAPTERS.indexOf(c) > at) ?? null
 }
 
+/**
+ * The wizard CTA's copy for a chapter — the phone's `useWizardNav` verbatim in shape
+ * (`src/features/form-customization/hooks/useWizardNav.ts:45`: `` `Next: ${next.label}` `` over
+ * `getNextStep`'s walk of the VISIBLE step set), so switching a screen off in Settings RENAMES
+ * the button instead of leaving it naming a screen Continue will skip.
+ *
+ * The name is the step registry's own label — the same string the drawer row renders — so the
+ * button and the drawer cannot drift apart. That is the whole reason this returns the copy and
+ * not just an id: one lookup, one source.
+ *
+ * `null` is the phone's own `WizardNav.next: { … } | null` (`useWizardNav.ts:31`), and it means
+ * "terminal step", NOT a fallback label. It is reachable only ON `completion`: that step is
+ * must-stay (`engine/content/form-customization.ts:264` + `:271-272` — `isStepMustStay`
+ * short-circuits `resolveStepVisible` at `:55` before any profile default or user override is
+ * read), so no configuration can drop it and it is always the last visible chapter. `completion`
+ * is also the one wizard screen that renders no CTA, so nothing downstream paints this arm.
+ */
+export function nextCtaLabel(id: ChapterId, v: FormVisibility): string | null {
+  const next = nextVisibleChapter(id, v)
+  // `getFormStep` takes a `string` by design (R-27), so the pre-wizard chapters ask it honestly
+  // and get `undefined` — they are not steps and render no CTA.
+  const label = next === null ? undefined : getFormStep(next)?.label
+  return label === undefined ? null : `Next: ${label}`
+}
+
 /** The previous visible chapter, or `null` at the start. Same hidden-current fallback. */
 export function prevVisibleChapter(id: ChapterId, v: FormVisibility): ChapterId | null {
   const visible = getVisibleChapters(v)

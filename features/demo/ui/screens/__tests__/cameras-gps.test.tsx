@@ -15,7 +15,7 @@ import type { CameraEntry, CameraGpsFix } from '@/features/demo/engine/types'
 // `isFieldVisible` is the P7.3 visibility gate; the forensic default shows everything, which
 // is the baseline these option/render tests are about. The gating arms live in
 // `field-visibility.test.tsx`.
-const nav = { onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn(), isFieldVisible: () => true }
+const nav = { nextLabel: "Next: Test Step", onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn(), isFieldVisible: () => true }
 
 const camera = (id: string, o: Partial<CameraEntry> = {}): CameraEntry => ({
   id,

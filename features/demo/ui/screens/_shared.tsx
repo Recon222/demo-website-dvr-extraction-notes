@@ -661,8 +661,22 @@ export function WizardHeader({ title, onBack, onMenu }: { title: string; onBack(
   )
 }
 
-/** Primary "Continue" button at the foot of a wizard screen. */
-export function WizardNext({ label, onClick }: { label: string; onClick(): void }) {
+/**
+ * Primary CTA at the foot of a wizard screen.
+ *
+ * `label` is DERIVED, never written here: the bridge builds it with `nextCtaLabel`
+ * (`engine/logic/form-visibility.ts`) from the next VISIBLE step, exactly as the phone's
+ * `useWizardNav` does. The demo used to hard-code "Continue →" at nine call sites and
+ * "Next: Requested Scope" at a tenth — prototype residue, and the very pair of anti-patterns the
+ * phone retired (`hooks/useWizardNav.ts:6-8`).
+ *
+ * `null` renders nothing, which is the phone's `{nav.next && <Button …>}`
+ * (`app/(form)/requested-scope.tsx:182-186`). It is not a fallback and it has no substitute
+ * copy — see `nextCtaLabel`'s docblock for why only `completion` reaches it, and `completion`
+ * renders no CTA.
+ */
+export function WizardNext({ label, onClick }: { label: string | null; onClick(): void }) {
+  if (label === null) return null
   return (
     <button type="button" onClick={onClick} style={{ width: '100%', ...buttonStyle() }}>
       {label}

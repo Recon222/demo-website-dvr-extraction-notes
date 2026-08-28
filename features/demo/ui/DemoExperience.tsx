@@ -75,7 +75,7 @@ import { renderSettingsPane } from '@/features/demo/ui/screens/settings/panes'
 import { UserProfilePane } from '@/features/demo/ui/screens/settings/panes/UserProfilePane'
 import { FormFieldsPane } from '@/features/demo/ui/screens/settings/panes/FormFieldsPane'
 import { PROFILE_LABELS } from '@/features/demo/engine/content/profiles'
-import { nextVisibleChapter, prevVisibleChapter, resolveFieldVisible, resolveStepVisible } from '@/features/demo/engine/logic/form-visibility'
+import { nextCtaLabel, nextVisibleChapter, prevVisibleChapter, resolveFieldVisible, resolveStepVisible } from '@/features/demo/engine/logic/form-visibility'
 import { DEFAULT_SETTINGS, type DemoSettings } from '@/features/demo/engine/content/settings-values'
 import { CaseMapPicker } from '@/features/demo/ui/screens/map/CaseMapPicker'
 import { toMapData } from '@/features/demo/ui/screens/map/mapData'
@@ -1286,6 +1286,13 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
     const n = nextVisibleChapter(currentChapter, store.getState())
     if (n) store.getState().setView(n)
   }
+  /**
+   * The wizard CTA's copy, derived from the SAME visible walk `onNext` takes — so the button can
+   * never name a screen Continue does not go to. Read through `getState()` like every other
+   * visibility closure here (`isFormFieldVisible`, `:768`): `profile` and `formOverrides` are
+   * subscribed above, so a Settings toggle re-renders the bridge and this recomputes with it.
+   */
+  const nextLabel = nextCtaLabel(currentChapter, store.getState())
   const onPrev = () => {
     const p = prevVisibleChapter(currentChapter, store.getState())
     if (p) store.getState().setView(p)
@@ -2547,6 +2554,7 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
             onChange={(f, v) => store.getState().updateField(f, v)}
             onCoordinates={(c) => store.getState().updateField('gps', { lat: c.lat, lng: c.lng, accuracyM: c.accuracyM, source: c.source })}
             onNext={onNext}
+            nextLabel={nextLabel}
             onBack={onPrev}
             onMenu={openMenu}
           />
@@ -2563,6 +2571,7 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
             onAdd={() => sc.add(blankScope())}
             onRemove={sc.remove}
             onNext={onNext}
+            nextLabel={nextLabel}
             onBack={onPrev}
             onMenu={openMenu}
           />
@@ -2579,6 +2588,7 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
             onAdd={() => v.add(blankVisit())}
             onRemove={v.remove}
             onNext={onNext}
+            nextLabel={nextLabel}
             onBack={onPrev}
             onMenu={openMenu}
           />
@@ -2607,6 +2617,7 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
             dstAdvisory={dstAdvisory}
             hasExtractedScopes={(currentLocation?.form.extractedScopes.length ?? 0) > 0}
             onNext={onNext}
+            nextLabel={nextLabel}
             onBack={onPrev}
             onMenu={openMenu}
           />
@@ -2646,13 +2657,14 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
             onRemove={ex.remove}
             onRegenerate={() => store.getState().generateExtractedScopes()}
             onNext={onNext}
+            nextLabel={nextLabel}
             onBack={onPrev}
             onMenu={openMenu}
           />
         )
       }
       case 'dvrInfo':
-        return <DvrInfoScreen dvr={currentLocation?.form.dvr ?? EMPTY_FORM.dvr} retention={retentionView} onChange={(f, v) => store.getState().updateField(`form.dvr.${f}`, v)} isFieldVisible={isFormFieldVisible} onNext={onNext} onBack={onPrev} onMenu={openMenu} />
+        return <DvrInfoScreen dvr={currentLocation?.form.dvr ?? EMPTY_FORM.dvr} retention={retentionView} onChange={(f, v) => store.getState().updateField(`form.dvr.${f}`, v)} isFieldVisible={isFormFieldVisible} onNext={onNext} nextLabel={nextLabel} onBack={onPrev} onMenu={openMenu} />
       case 'cameras': {
         const cams = currentLocation?.form.cameras ?? []
         const cam = formList(cams, 'form.cameras')
@@ -2671,6 +2683,7 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
             // gone (the R-1/R-32 identity discipline, applied to a dynamic row list).
             onCaptureGps={(cameraId, gps) => store.getState().setCameraGps(cameraId, gps)}
             onNext={onNext}
+            nextLabel={nextLabel}
             onBack={onPrev}
             onMenu={openMenu}
           />
@@ -2684,6 +2697,7 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
             onChange={(f, v) => store.getState().updateField(`form.export.${f}`, v)}
             onToggleMediaPlayer={() => store.getState().updateField('form.export.mediaPlayerIncluded', !currentLocation?.form.export.mediaPlayerIncluded)}
             onNext={onNext}
+            nextLabel={nextLabel}
             onBack={onPrev}
             onMenu={openMenu}
           />
@@ -2703,6 +2717,7 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
             onRestoreAll={restoreAllNotes}
             onCommitFreeText={commitNotesFreeText}
             onNext={onNext}
+            nextLabel={nextLabel}
             onBack={onPrev}
             onMenu={openMenu}
           />

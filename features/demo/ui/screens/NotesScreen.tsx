@@ -43,6 +43,8 @@ export interface NotesScreenProps {
   onRestoreAll(mode: RestoreAllMode): void
   onCommitFreeText(text: string): void
   onNext(): void
+  /** Derived CTA copy — see `WizardNext` / `nextCtaLabel`. Never a literal. */
+  nextLabel: string | null
   onBack(): void
   onMenu(): void
 }
@@ -286,6 +288,7 @@ export function NotesScreen({
   onRestoreAll,
   onCommitFreeText,
   onNext,
+  nextLabel,
   onBack,
   onMenu,
 }: NotesScreenProps) {
@@ -456,7 +459,7 @@ export function NotesScreen({
             Write my own notes…
           </button>
         </div>
-        <WizardNext label="Continue →" onClick={onNext} />
+        <WizardNext label={nextLabel} onClick={onNext} />
       </div>
       {dialogNode}
     </div>

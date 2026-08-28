@@ -22,7 +22,7 @@ export function Filled() {
         onChange={() => {}}
         onAdd={() => {}}
         onRemove={() => {}}
-        onNext={() => {}}
+        nextLabel="Next: Time Offset" onNext={() => {}}
         onBack={() => {}}
         onMenu={() => {}}
       />
@@ -39,7 +39,7 @@ export function Empty() {
         onChange={() => {}}
         onAdd={() => {}}
         onRemove={() => {}}
-        onNext={() => {}}
+        nextLabel="Next: Time Offset" onNext={() => {}}
         onBack={() => {}}
         onMenu={() => {}}
       />

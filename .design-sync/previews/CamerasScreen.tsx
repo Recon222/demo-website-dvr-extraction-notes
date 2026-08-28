@@ -24,7 +24,7 @@ export function Filled() {
         onChange={() => {}}
         onAdd={() => {}}
         onRemove={() => {}}
-        onNext={() => {}}
+        nextLabel="Next: Export Information" onNext={() => {}}
         onBack={() => {}}
         onMenu={() => {}}
       />
@@ -42,7 +42,7 @@ export function Empty() {
         onChange={() => {}}
         onAdd={() => {}}
         onRemove={() => {}}
-        onNext={() => {}}
+        nextLabel="Next: Export Information" onNext={() => {}}
         onBack={() => {}}
         onMenu={() => {}}
       />

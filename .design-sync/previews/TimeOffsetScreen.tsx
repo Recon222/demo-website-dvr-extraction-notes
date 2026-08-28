@@ -34,7 +34,7 @@ const CALLBACKS = {
   onCalculate: () => {},
   onCaptureOcr: () => {},
   onToggleDst: () => {},
-  onNext: () => {},
+  nextLabel: "Next: Extracted Video Scope", onNext: () => {},
   onBack: () => {},
   onMenu: () => {},
 }

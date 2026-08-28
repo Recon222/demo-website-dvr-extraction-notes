@@ -40,7 +40,7 @@ import { TimeOffsetScreen, type TimeOffsetScreenProps } from '@/features/demo/ui
  * perceives, which is what the phone's own comment ranks.
  */
 
-const nav = { onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn() }
+const nav = { nextLabel: "Next: Test Step", onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn() }
 
 const props: TimeOffsetScreenProps = {
   dvrDateTime: '2026-06-01 12:05:30',

@@ -26,7 +26,7 @@ export function Filled() {
         occNumber="PR-2026-0114-2287"
         fields={FIELDS}
         onChange={() => {}}
-        onNext={() => {}}
+        nextLabel="Next: Requested Scope" onNext={() => {}}
         onBack={() => {}}
         onMenu={() => {}}
         isFieldVisible={allFieldsVisible}
@@ -43,7 +43,7 @@ export function Empty() {
         occNumber="PR-2026-0114-2287"
         fields={{ requesterName: '', requesterBadge: '', requesterUnit: '', requesterPhone: '', requesterEmail: '', businessName: '', streetAddress: '', city: '', locationContact: '', locationPhone: '' }}
         onChange={() => {}}
-        onNext={() => {}}
+        nextLabel="Next: Requested Scope" onNext={() => {}}
         onBack={() => {}}
         onMenu={() => {}}
         isFieldVisible={allFieldsVisible}

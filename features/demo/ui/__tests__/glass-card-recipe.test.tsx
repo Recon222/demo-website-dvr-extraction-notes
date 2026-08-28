@@ -134,7 +134,7 @@ function cardSurfaces(container: HTMLElement): HTMLElement[] {
   )
 }
 
-const nav = { onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn(), isFieldVisible: () => true }
+const nav = { nextLabel: "Next: Test Step", onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn(), isFieldVisible: () => true }
 
 const mapRowItem = sheetLocation({ businessName: 'Kim', address: '1450 Eglinton, Mississauga' })
 
@@ -214,7 +214,7 @@ const timeOffsetProps: TimeOffsetScreenProps = {
   onToggleDst: vi.fn(),
   dstAdvisory: null,
   hasExtractedScopes: false,
-  onNext: vi.fn(),
+  nextLabel: "Next: Test Step", onNext: vi.fn(),
   onBack: vi.fn(),
   onMenu: vi.fn(),
 }

@@ -23,7 +23,7 @@ export function Filled() {
         onChange={() => {}}
         onRemove={() => {}}
         onRegenerate={() => {}}
-        onNext={() => {}}
+        nextLabel="Next: DVR Information" onNext={() => {}}
         onBack={() => {}}
         onMenu={() => {}}
       />
@@ -39,7 +39,7 @@ export function Empty() {
         onChange={() => {}}
         onRemove={() => {}}
         onRegenerate={() => {}}
-        onNext={() => {}}
+        nextLabel="Next: DVR Information" onNext={() => {}}
         onBack={() => {}}
         onMenu={() => {}}
       />

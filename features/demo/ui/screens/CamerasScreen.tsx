@@ -28,13 +28,15 @@ export interface CamerasScreenProps {
   /** Which of this screen's fields the visitor's form profile keeps (P7.3). */
   isFieldVisible(id: FormFieldId): boolean
   onNext(): void
+  /** Derived CTA copy — see `WizardNext` / `nextCtaLabel`. Never a literal. */
+  nextLabel: string | null
   onBack(): void
   onMenu(): void
   /** Test seam forwarded to every row's capture control. */
   gpsDeps?: UseGpsCaptureOptions['deps']
 }
 
-export function CamerasScreen({ cameras, onChange, onAdd, onRemove, onCaptureGps, isFieldVisible, onNext, onBack, onMenu, gpsDeps }: CamerasScreenProps) {
+export function CamerasScreen({ cameras, onChange, onAdd, onRemove, onCaptureGps, isFieldVisible, onNext, nextLabel, onBack, onMenu, gpsDeps }: CamerasScreenProps) {
   // Per-camera custom Resolution/FPS mode — the phone's cameras.tsx:43-61 behavior with two
   // deliberate divergences (review R-2): the maps are keyed by the stable CameraEntry.id, not
   // the row index (the phone's index keying silently reassigns custom mode between rows when a
@@ -123,7 +125,7 @@ export function CamerasScreen({ cameras, onChange, onAdd, onRemove, onCaptureGps
             {maxCamerasMessage(MAX_CAMERAS)}
           </div>
         )}
-        <WizardNext label="Continue →" onClick={onNext} />
+        <WizardNext label={nextLabel} onClick={onNext} />
       </div>
     </div>
   )

@@ -13,12 +13,14 @@ export interface ExtractedScopeScreenProps {
   onRemove(index: number): void
   onRegenerate(): void
   onNext(): void
+  /** Derived CTA copy — see `WizardNext` / `nextCtaLabel`. Never a literal. */
+  nextLabel: string | null
   onBack(): void
   onMenu(): void
 }
 
 /** Auto-generated DVR-time extraction windows (from the offset). Editable; regenerate from offset. */
-export function ExtractedScopeScreen({ scopes, onChange, onRemove, onRegenerate, onNext, onBack, onMenu }: ExtractedScopeScreenProps) {
+export function ExtractedScopeScreen({ scopes, onChange, onRemove, onRegenerate, onNext, nextLabel, onBack, onMenu }: ExtractedScopeScreenProps) {
   return (
     <div style={{ minHeight: 786, paddingBottom: 40 }}>
       <WizardHeader title="Extracted Scope" onBack={onBack} onMenu={onMenu} />
@@ -63,7 +65,7 @@ export function ExtractedScopeScreen({ scopes, onChange, onRemove, onRegenerate,
           </div>
         ))}
         <button type="button" onClick={onRegenerate} style={{ width: '100%', marginBottom: 14, ...buttonStyle({ variant: 'secondary' }) }}>Regenerate from offset</button>
-        <WizardNext label="Continue →" onClick={onNext} />
+        <WizardNext label={nextLabel} onClick={onNext} />
       </div>
     </div>
   )

@@ -92,11 +92,13 @@ export interface DvrInfoScreenProps {
   /** Which of this screen's fields the visitor's form profile keeps (P7.3). */
   isFieldVisible(id: FormFieldId): boolean
   onNext(): void
+  /** Derived CTA copy — see `WizardNext` / `nextCtaLabel`. Never a literal. */
+  nextLabel: string | null
   onBack(): void
   onMenu(): void
 }
 
-export function DvrInfoScreen({ dvr, retention, onChange, isFieldVisible, onNext, onBack, onMenu }: DvrInfoScreenProps) {
+export function DvrInfoScreen({ dvr, retention, onChange, isFieldVisible, onNext, nextLabel, onBack, onMenu }: DvrInfoScreenProps) {
   // Custom Resolution/FPS mode — mirrors the phone's dvr-information.tsx:69-74,124-142:
   // local state seeded from the stored value (a saved free-text value reopens in custom
   // mode); selecting the `custom` sentinel reveals the free-text input and leaves the
@@ -306,7 +308,7 @@ export function DvrInfoScreen({ dvr, retention, onChange, isFieldVisible, onNext
         </SectionCard>
         )}
 
-        <WizardNext label="Continue →" onClick={onNext} />
+        <WizardNext label={nextLabel} onClick={onNext} />
       </div>
     </div>
   )

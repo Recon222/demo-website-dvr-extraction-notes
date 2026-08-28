@@ -4,7 +4,7 @@ import { TimeOffsetScreen } from '@/features/demo/ui/screens/TimeOffsetScreen'
 import { OcrCaptureScreen } from '@/features/demo/ui/screens/OcrCaptureScreen'
 import { ExtractedScopeScreen } from '@/features/demo/ui/screens/ExtractedScopeScreen'
 
-const nav = { onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn() }
+const nav = { nextLabel: "Next: Test Step", onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn() }
 
 describe('TimeOffsetScreen', () => {
   const base = {
