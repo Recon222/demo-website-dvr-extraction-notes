@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { AddRowButton, DateTimeField, Field, SectionCard, WizardNext } from '@/features/demo/ui/screens/_shared'
+import { Accordion, AddRowButton, DateTimeField, Field, SectionCard, WizardNext } from '@/features/demo/ui/screens/_shared'
 import { ElevatedEdges, PrimaryButtonGradient } from '@/features/demo/ui/controls/button-recipe'
 import { colors, scheme, type ColorScheme } from '@/features/demo/ui/tokens/palette'
 import { stubClock } from '@/features/demo/ui/inputs/__tests__/test-utils'
+import { spacing } from '@/features/demo/ui/tokens/scale'
 import { conflictingStyleWarnings } from '@/vitest.setup'
 
 // The old datetime-local DateTimeField was replaced by the custom Date/Time picker
@@ -153,6 +154,58 @@ describe('_shared.SectionCard — the phone `FormSection` glass recipe (A77 / U6
       </SectionCard>,
     )
     expect(screen.getByText('Requester Information')).toBeInTheDocument()
+  })
+})
+
+describe('_shared.Accordion — the phone `FormSection` NON-glass collapsible (DP-5)', () => {
+  /**
+   * `NewCaseModal.tsx:333-334`/`:367-368` pass `collapsible` WITHOUT `glass`, so the counterpart
+   * is `FormSection`'s non-glass branch (`:142-147`) whose whole styling is `marginBottom:
+   * Layout.spacing.lg`. The demo painted a card there instead — prototype furniture whose ground
+   * was the retired navy in its rgb spelling.
+   */
+  const render1 = () =>
+    render(
+      <Accordion title="Officer in Charge">
+        <div>OIC Name</div>
+      </Accordion>,
+    )
+
+  it('paints no card — no fill, no border, no radius', () => {
+    const { container } = render1()
+    const details = container.querySelector('details') as HTMLElement
+    expect(details.style.background).toBe('')
+    expect(details.style.border).toBe('')
+    expect(details.style.borderRadius).toBe('')
+    expect(details.style.marginBottom).toBe(`${spacing.lg}px`)
+  })
+
+  it('rules the header off with a 1px `colors.border` edge, per side', () => {
+    const { container } = render1()
+    const summary = container.querySelector('summary') as HTMLElement
+    // Per side, never the shorthand — jsdom does not decompose `borderBottom` (HANDOFF §4).
+    expect(summary.style.borderBottomWidth).toBe('1px')
+    expect(summary.style.borderBottomStyle).toBe('solid')
+    expect(summary.style.borderBottomColor).toBe(hexToJsdomRgb(colors.border))
+    expect(summary.style.paddingBottom).toBe(`${spacing.sm}px`)
+    expect(summary.style.marginBottom).toBe(`${spacing.md}px`)
+    // `fontSize.lg` / semibold — the phone's `styles.title`, not the old 14/600 field-label size.
+    expect(summary.style.fontSize).toBe('18px')
+    expect(summary.style.fontWeight).toBe('600')
+  })
+
+  it('opens by default and swaps a `−`/`+` glyph, not a chevron', async () => {
+    const user = userEvent.setup()
+    const { container } = render1()
+    const details = container.querySelector('details') as HTMLDetailsElement
+    // Phone `FormSection.tsx:60` — `defaultCollapsed = false`, and neither call site overrides it.
+    expect(details.open).toBe(true)
+    expect(screen.getByText('−')).toBeInTheDocument()
+    expect(container.querySelector('.demo-accordion-chevron')).toBeNull()
+
+    await user.click(container.querySelector('summary') as HTMLElement)
+    expect(details.open).toBe(false)
+    expect(screen.getByText('+')).toBeInTheDocument()
   })
 })
 

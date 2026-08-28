@@ -329,12 +329,12 @@ describe('palette (U0.1 / A1-A9, A19, A27, A28)', () => {
         needle: /#0d1b2a|rgba?\(13,27,42/,
         spellings: ['#0d1b2a', '#0D1B2A', 'rgb(13, 27, 42)', 'rgba(13, 27, 42, 0.55)'],
         /**
-         * `_shared.Accordion` only, and AWAITING OWNER rather than permanent: its phone
-         * counterpart (`FormSection.tsx:142-155`, the non-glass branch) paints NO fill at all, so
-         * the port is "remove the ground", which is a visible design change rather than a token
-         * swap. Held with rows 15-17 for the owner's ruling.
+         * EMPTY, and it stays empty. `screens/_shared.tsx` sat here while `Accordion`'s ground
+         * awaited a ruling; the owner ruled at DP-5 (its phone counterpart, `FormSection`'s
+         * non-glass branch, paints no fill at all) and the ground is gone, so the exemption went
+         * with it — the anti-vacuity test below would red on it now.
          */
-        exempt: ['screens/_shared.tsx'] as readonly string[],
+        exempt: [] as readonly string[],
       },
       {
         /**

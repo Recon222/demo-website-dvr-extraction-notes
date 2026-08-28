@@ -204,7 +204,11 @@ Renaming it (`FormSection`? `PlainSection`?) is optional and not proposed: two c
 
 Watch: the ruling also removes `screens/_shared.tsx` from the retired-navy family's `exempt` list in `palette.test.ts` — leaving it there would trip the exemption anti-vacuity test ("every exemption is still a real one"), so that deletion is part of the same commit and is a second RED confirming the colour is gone.
 
-**Status (DP-5)** — INVESTIGATED
+**Status (DP-5)** — **FIXED @ `408cae8`.** `Accordion` is now the phone's non-glass collapsible: no fill, no border, no radius, `marginBottom: spacing.lg`; the summary carries the header rule (`paddingBottom: spacing.sm`, 1px `colors.border` bottom edge per-side, `marginBottom: spacing.md`) at 18/600; the chevron is replaced by the `−`/`+` glyph at 24px bold, `width: 24`, `textSecondary`; and it opens by default, controlled (`useState(true)` + `onToggle`) because React re-asserts a bare `open` on every render and an uncontrolled one springs back open. Both call sites unchanged.
+
+Second RED in the same commit: `screens/_shared.tsx` left the retired-navy family's `exempt` list, since the ground it was exempted for is gone — the anti-vacuity test would red on a stale exemption.
+
+Residue, deliberately not touched: `demo.css:144`'s `.demo-accordion-chevron` rotate rule is now dead, but `demo.css` is D9-frozen and a dead rule is inert. The two rules above it (`list-style: none`, the webkit marker reset) are still live.
 
 ---
 

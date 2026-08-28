@@ -557,18 +557,52 @@ export function Field({
 
 /** A collapsed-by-default disclosure for secondary modal fields (OIC, Video Coordinator). */
 export function Accordion({ title, children }: { title: string; children: ReactNode }) {
+  // Phone `FormSection.tsx:67` — `useState(defaultCollapsed)`, and `:60` defaults it FALSE, so
+  // these sections open. Neither call site overrides it. Controlled rather than a bare `open`
+  // attribute: React re-asserts `open` on every render, so an uncontrolled one springs back
+  // open the next time the modal re-renders.
+  const [open, setOpen] = useState(true)
   return (
-    <details className="demo-accordion" style={{ marginBottom: 14, borderRadius: 10, border: GLASS.border, background: 'rgba(13,27,42,0.4)', overflow: 'hidden' }}>
-      {/* U6.4a: the summary is a HEADING, not a field label, so it keeps its own 14/600 —
-          only the tone moves. It read the retired form-label hex; every heading in this port
-          is `colors.text`. */}
-      <summary style={{ cursor: 'pointer', padding: '12px 14px', fontSize: 14, fontWeight: 600, color: colors.text, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    /* Phone `FormSection` in its NON-glass branch (`:142-147`) — `NewCaseModal.tsx:333-334`
+       and `:367-368` pass `collapsible` WITHOUT `glass`. That branch's entire styling is
+       `marginBottom: Layout.spacing.lg`: no fill, no border, no radius. The card this used to
+       paint (`rgba(13,27,42,0.4)` on `GLASS.border`) was prototype furniture from `802ab13`,
+       never a port, and its ground was the retired navy in the rgb spelling DP-4 exposed. */
+    <details
+      className="demo-accordion"
+      open={open}
+      onToggle={(e) => setOpen(e.currentTarget.open)}
+      style={{ marginBottom: spacing.lg }}
+    >
+      {/* Phone `:175-187`: the header is a rule, not a bar — `paddingBottom: spacing.sm`, a 1px
+          `colors.border` bottom edge, `marginBottom: spacing.md`, title at `fontSize.lg`/
+          semibold. Three longhands rather than the `borderBottom` shorthand, so width and colour
+          stay separately readable (HANDOFF §4 — jsdom does not decompose a shorthand). */}
+      <summary
+        style={{
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingBottom: spacing.sm,
+          marginBottom: spacing.md,
+          borderBottomWidth: 1,
+          borderBottomStyle: 'solid',
+          borderBottomColor: colors.border,
+          fontSize: 18,
+          fontWeight: 600,
+          color: colors.text,
+        }}
+      >
         <span>{title}</span>
-        <svg aria-hidden="true" className="demo-accordion-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7a9fc4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform 0.2s' }}>
-          <path d="M6 9l6 6 6-6" />
-        </svg>
+        {/* Phone `:80-84` + `:190-195`: a `+`/`−` GLYPH at `fontSize['2xl']` bold, `width: 24`,
+            centred, on `textSecondary` — not the chevron this used to draw. `aria-hidden`
+            because `<summary>` already announces its own expanded state. */}
+        <span aria-hidden="true" style={{ fontSize: 24, fontWeight: 700, width: 24, textAlign: 'center', color: colors.textSecondary }}>
+          {open ? '−' : '+'}
+        </span>
       </summary>
-      <div style={{ padding: '2px 14px 4px' }}>{children}</div>
+      {children}
     </details>
   )
 }
