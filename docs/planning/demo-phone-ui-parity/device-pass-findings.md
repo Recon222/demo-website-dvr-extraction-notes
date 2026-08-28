@@ -43,10 +43,61 @@ Demo `tokens/scale.ts` spacing/radius/touchTarget are equal to the phone's `Layo
 
 Scope: D20-safe (presentational prop only; no store reach below the bridge, no engine impurity). Exactly **one** test pin reddens — `ui/__tests__/DemoExperience.form-customization.test.tsx:136` (`getByRole('button', { name: 'Continue →' })`); `screens/__tests__/shared.test.tsx:58` supplies its own label and is unaffected.
 
-**Status** — **FIXED @ `52ee594`.** `nextCtaLabel` (`engine/logic/form-visibility.ts`) joins the two halves the demo already had; `DemoExperience` computes it from the same visible walk `onNext` takes and threads `nextLabel` to the nine screens; `WizardNext` renders the prop and nothing else. No fallback arm — `null` is the phone's own `WizardNav.next` shape and reaches only `completion`, which renders no CTA.
+**Status (DP-1)** — **FIXED @ `52ee594`.** `nextCtaLabel` (`engine/logic/form-visibility.ts`) joins the two halves the demo already had; `DemoExperience` computes it from the same visible walk `onNext` takes and threads `nextLabel` to the nine screens; `WizardNext` renders the prop and nothing else. No fallback arm — `null` is the phone's own `WizardNav.next` shape and reaches only `completion`, which renders no CTA.
 
 Probes (worktree `probe-dp1-ctalabel`, both from exit code 1, restores proved byte-identical, teardown 549 junctions / `.pnpm` 240→240):
 - *hardcoded-label regression* — `DvrInfoScreen`'s CTA back to `label="Continue →"` → **KILLED**, 3 red.
 - *visibility-blind derivation* — `nextCtaLabel` walking the raw `CHAPTERS` registry instead of the visible set → **KILLED**, 3 red.
 
 Gates cold at that head: `tsc --noEmit` 0 · `tsc -p tsconfig.previews.json` 0 · 4,337 passed + 2 todo (310 files) · drift guard "all 145 anchor rows match" · `next build` OK, `/demo` First Load **107 kB**.
+
+---
+
+## DP-2 — Drawer panel ground is far darker than the phone's
+
+**Seen** — The phone's drawer background sits only a shade below its row buttons (glass rows on a near-ground panel); the demo's drawer panel is close to black, so the rows read as floating on a hole.
+
+**Root cause (demo)** — Two raw hexes in `features/demo/ui/controls/WizardDrawer.tsx` that never went through the token port:
+
+1. **The panel ground**, `:358` — `background: '#0b1626'`, a hard-coded literal. The phone paints `backgroundColor: colors.background` (`src/components/layout/CustomDrawerContent.tsx:153`) = `#002853` (`Colors.ts:135`), which the demo already carries verbatim as `colors.background` (`ui/tokens/palette.ts:76`) and which the drift guard pins. The drawer simply never asks for it.
+2. **The "Back to Cases" button**, `:386` — `background: '#101f33', border: 'none'`. The phone paints it with the **same card glass recipe as the rows** — gradient + border + `highlightTop` + card shadow (`CustomDrawerContent.tsx:184-196`) — and its docblock at `:181-183` says why, in as many words: *"It used to paint a single flat `backgroundColor`, which read as a hole next to them."* The demo is still in the exact state the phone diagnosed and fixed.
+
+**Measured** (dark scheme, sRGB relative luminance; rows are the card tier `rgba(14,57,101,0.85) → rgba(23,65,110,0.92)`, identical on both sides):
+
+| | phone | demo |
+|---|---|---|
+| panel ground | `#002853`, L = 0.0214 | `#0b1626`, L = 0.0078 |
+| row over that ground (top stop) | ≈ `rgb(12,54,98)` | ≈ `rgb(14,52,92)` |
+| **ground ↔ row contrast** | **1.20 : 1** | **1.44 : 1** |
+
+The demo's ground is **2.7× darker** in relative luminance. The rows barely move (the card gradient is 85–92% opaque, so it hides its own backdrop) — it is the ground alone that is wrong, which is exactly why the owner reads it as "the rows float". 1.20:1 is the phone's "only slightly darker".
+
+**Phone dead code?** — **NO.** Both phone values are live and current: `CustomDrawerContent.tsx:153` renders on every drawer open, and the back-link's glass recipe at `:184-196` is the *newer* code — it post-dates the flat fill the demo still carries. Nothing to delete phone-side; this is a demo-side miss, in the port's own token vocabulary.
+
+**Fix** — `:358` → `colors.background`; `:386` → the same `GLASS.gradientCard` + `GLASS.borderSoft` (+ lit top edge per the lit-edge rule) the rows at `:61-74` already use, deleting `border: 'none'`. Both are one-line token swaps against values the drift guard already pins. Note `#0b1626` also appears at `ExitDialog.tsx:55` and `AddressAutocomplete.tsx:187` — see DP-4.
+
+**Status (DP-2)** — INVESTIGATED
+
+---
+
+## DP-3 — Drawer footer save notice has no phone counterpart
+
+**Seen** — The demo's drawer footer shows a save-status line above the app name; the phone's footer shows only `DVR Extraction Notes` / `v1.0.0` (owner's screenshot).
+
+**Root cause (demo)** — `WizardDrawer.tsx:425-429` renders `saveStatus.text` when the bridge supplies one. It is **not a mis-port** — it is a deliberate demo original, already documented as such at `:41-48` and `:109-114` ("No phone counterpart — session persistence is demo-only"), and adjudicated in v1 as ledger **§59a** (`docs/code-reviews/deferred.md:2539`). It exists to satisfy the honesty rule: the demo's only durable surface is a per-tab `sessionStorage` snapshot, and the line says so rather than implying the phone's device persistence.
+
+**Phone dead code?** — **The demo's line does not come from it — but YES, there is dead phone code in this exact territory, and the owner can delete it.** Re-verified at phone HEAD `9a1d386d` (moved during this session):
+
+- `src/hooks/useSaveStatus.ts:31` — `export function useSaveStatus(): SaveStatusState`, **the reader**, has **zero** production callers. Every other reference in `src/`/`app/` imports the *writer* `setSaveStatus`; the only non-test, non-doc mention of the reader is its own definition.
+- The phone's own docs already say it: `src/components/README.md:209` — *"`AppStateHandler` calls `setSaveStatus` (save-status pipeline; **no UI consumer currently**)"*.
+- So the write pipeline is live but terminal: `setSaveStatus` (`useSaveStatus.ts:79`), the `persistence.slice.ts:38,101` fields, and the `'success' → 'idle'` auto-reset timer (`store/README.md:260`) all maintain a state **nothing renders**. `CustomDrawerContent.tsx` imports `useSectionCompletion` and never `useSaveStatus`.
+
+**Suggested phone-side deletion:** the `useSaveStatus()` reader hook at `useSaveStatus.ts:31` is dead outright. The writer pipeline behind it is a judgement call — it costs a store slice and a timer to feed a value with no consumer; if no save UI is planned, `saveStatus`/`saveError` on `persistence.slice.ts` and every `setSaveStatus(...)` call go with it. `isDirty` is separate and **is** consumed — do not sweep that in.
+
+**Fix (demo)** — Owner's call, and it is a product decision, not a defect:
+- **Keep** — it is the honesty surface for the demo's weaker persistence, and the phone has no equivalent claim to contradict. Divergence stays, documented.
+- **Drop** — the footer then matches the phone exactly. The honesty argument survives elsewhere: the same fact is available to the Settings/About surface, and nothing else in the demo claims a save.
+
+Recommendation: **keep**, but only if the owner still wants the honesty line in a *transient* overlay — note ledger §59d already flags that it is sampled per drawer-open and never ticks, so a drawer left open reads "just now" indefinitely. If DP-3 is resolved by dropping the line, §59d's deferral resolves with it.
+
+**Status (DP-3)** — INVESTIGATED
