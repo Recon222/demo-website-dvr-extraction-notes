@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { render, screen, act } from '@testing-library/react'
 import { PhoneFrame } from '@/features/demo/ui/PhoneFrame'
+import { PHONE_COLUMN_PADDING_Y, PHONE_FRAME_H } from '@/features/demo/ui/usePhoneScale'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
 import { withAlpha } from '@/features/demo/ui/tokens/scale'
@@ -87,15 +90,60 @@ describe('PhoneFrame', () => {
   })
 
   it('applies a scale transform sized to the viewport height', () => {
-    window.innerHeight = 600 // 600 − 28 = 572 → 572/812 ≈ 0.704
+    // 600 − 56 = 544 → 544/812 ≈ 0.670. The reserve is the sticky column's FULL vertical
+    // padding (28 top + 28 bottom), not half of it — DP-8: at the old 28 the sticky box came out
+    // taller than a short viewport and the frame could not stay fully in view.
+    window.innerHeight = 600
     render(
       <PhoneFrame>
         <div>x</div>
       </PhoneFrame>,
     )
     const frame = document.querySelector('[data-phone="frame"]') as HTMLElement
-    expect(frame.style.transform).toContain('scale(0.70')
+    expect(frame.style.transform).toContain('scale(0.669')
     expect(frame.style.transformOrigin).toBe('top center')
+  })
+
+  /**
+   * DP-8. A CSS transform scales the PAINT and leaves the LAYOUT box unscaled, so the frame used
+   * to occupy 812px of the sticky column however small it was drawn. That made the column's box
+   * taller than a short viewport, and `position: sticky` could not hold the phone fully in view at
+   * the foot of the page (measured in Chromium at 700px: 80% visible, top −129).
+   *
+   * jsdom computes no layout, so it cannot see the scroll behaviour itself — the Chromium
+   * evidence is in the DP-8 row of the device-pass findings. What jsdom CAN see, and what this
+   * pins, is the mechanism: the wrapper's height tracks the scale rather than staying 812.
+   */
+  it('shrinks the frame LAYOUT box with the scale, not just its paint (DP-8)', () => {
+    window.innerHeight = 600 // scale ≈ 0.6699 (see the arithmetic above)
+    render(
+      <PhoneFrame>
+        <div>x</div>
+      </PhoneFrame>,
+    )
+    const frame = document.querySelector('[data-phone="frame"]') as HTMLElement
+    const wrapper = frame.parentElement as HTMLElement
+    const scale = Number(/scale\(([\d.]+)\)/.exec(frame.style.transform)![1])
+    expect(scale).toBeLessThan(1)
+    // The wrapper reserves the SCALED height. At scale 1 this is 812; here it must not be.
+    expect(wrapper.style.height).toBe(`${PHONE_FRAME_H * scale}px`)
+    expect(wrapper.style.height).not.toBe(`${PHONE_FRAME_H}px`)
+  })
+
+  /**
+   * The reserve and the padding are one number in two files. `usePhoneScale` subtracts
+   * `PHONE_COLUMN_PADDING_Y` from the viewport; `DemoExperience`'s sticky column spends exactly
+   * that much on padding. If they drift, the box stops fitting and DP-8 comes back silently.
+   */
+  it('reserves exactly the sticky column’s vertical padding (DP-8)', () => {
+    const src = readFileSync(
+      join(process.cwd(), 'features', 'demo', 'ui', 'DemoExperience.tsx'),
+      'utf8',
+    )
+    const decl = /position: 'sticky', top: 0, alignSelf: 'flex-start', padding: '(\d+)px [^']*? (\d+)px [^']*?'/.exec(src)
+    expect(decl, 'the sticky phone column’s padding declaration moved — re-point this pin').not.toBeNull()
+    const [, top, bottom] = decl!
+    expect(Number(top) + Number(bottom)).toBe(PHONE_COLUMN_PADDING_Y)
   })
 
   it('never locks pointer-events on the screen subtree (the phone is always interactive)', () => {
@@ -131,6 +179,6 @@ describe('PhoneFrame', () => {
       window.innerHeight = 600
       window.dispatchEvent(new Event('resize'))
     })
-    expect(frame.style.transform).toContain('scale(0.70')
+    expect(frame.style.transform).toContain('scale(0.669')
   })
 })

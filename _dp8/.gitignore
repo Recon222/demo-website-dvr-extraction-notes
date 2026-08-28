@@ -1,0 +1,3 @@
+# Screenshots are corroboration only and stay out of the repo — the EVIDENCE is the numeric
+# table in the DP-8 doc row, reproducible with probe.mjs. See the row for how to run it.
+*.png
