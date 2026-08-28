@@ -101,3 +101,42 @@ The demo's ground is **2.7× darker** in relative luminance. The rows barely mov
 Recommendation: **keep**, but only if the owner still wants the honesty line in a *transient* overlay — note ledger §59d already flags that it is sampled per drawer-open and never ticks, so a drawer left open reads "just now" indefinitely. If DP-3 is resolved by dropping the line, §59d's deferral resolves with it.
 
 **Status (DP-3)** — INVESTIGATED
+
+---
+
+## DP-4 — Sweep: residual dark grounds across `ui/**`
+
+**Seen** — Several surfaces had wrong (too dark) backgrounds before W4; the owner believes all but the drawer were fixed and wants certainty.
+
+**Result — the owner's belief is correct. The drawer is the only residual, and it is two sites, both already written up as DP-2.** One further in-frame surface shares the same orphan hex.
+
+**Why these three survived every guard — the structural gap.** The campaign has two mechanical sweeps and neither can see these:
+- `ui/tokens/__tests__/palette.test.ts:81-92` — the `RETIRED` list, 7 entries, sweeps `ui/**` and `.design-sync/previews/` for hexes **the PHONE retired** in its P0 re-base (`#0d1b2a`, `#1e3a5f`, `#2a4a6f`, `#132236`, `#0f2035`, `#35a0d6`, `#2580ad`).
+- `.design-sync/check-rn-parity.mjs` — 145 anchor rows, compares values that **exist on both sides**.
+
+`#0b1626` and `#101f33` are demo-**original** prototype navies. The phone never had them, so they were never retired; nothing on the phone corresponds to them, so no anchor row covers them. A demo-invented ground is invisible to both guards by construction. That is the whole reason the drawer slipped through five waves.
+
+**The raw-hex ground sweep** (every `background`/`backgroundColor` set to a hex literal under `features/demo/ui/**`, tests excluded — 21 sites, all classified):
+
+| demo site | paints | verdict |
+|---|---|---|
+| `controls/WizardDrawer.tsx:358` | `#0b1626` | **DARKER** — phone `CustomDrawerContent.tsx:153` = `colors.background` `#002853`. **DP-2.** |
+| `controls/WizardDrawer.tsx:386` | `#101f33` | **DARKER** — phone `CustomDrawerContent.tsx:184-196` = card glass gradient. **DP-2.** |
+| `inputs/AddressAutocomplete.tsx:187` | `#0b1626` | **RESIDUAL** — the typeahead dropdown. Web-only affordance (the phone's address entry is a plain modal on `colors.background`, `EditIncidentLocationModal.tsx:104`, with no suggestion list), so there is no parity mismatch — but it is inside the frame, so D12 applies and it should follow the palette rather than an orphan hex. Same hex as the drawer; fix it in the same pass. |
+| `controls/ExitDialog.tsx:55` | `#0b1626` | **EXEMPT** — `position:fixed`, outside the phone frame; Case-File marketing chrome ("Exploration manifest", mono + `#4ecdc4`), not an app surface. |
+| `PhoneFrame.tsx:123` | `#04060a` | EXEMPT — frame bezel, demo-only. |
+| `screens/MediaCaptureScreen.tsx:99,867,875` · `OcrCaptureScreen.tsx:576,591` · `AudioRecorderScreen.tsx:388` · `AudioPreviewScreen.tsx:110` · `MediaLibrarySheet.tsx:551,562` · `import/PasteStage.tsx:43` | `#05080d` / `#0a1320` | EXEMPT — viewfinder/recorder/terminal chrome, deliberately near-black. |
+| `screens/map/MapScreen.tsx:473` | `#0a1422` | EXEMPT — map container ground; map chrome is always-dark by design (the guard carries 4 always-dark map-chrome rows). |
+| `chrome/PdfPreview.tsx:139,154` | `#11151c` / `#3a3f47` | NO-COUNTERPART — pdf.js viewer chrome; the phone renders PDFs through a native viewer. |
+| `screens/ImportModal.tsx:170` | `#0a1626` | NO-COUNTERPART — the `<pre>` technical-details well inside the import error card. A near-black code block is the idiom, and the phone's import modal has no equivalent raw-JSON disclosure. |
+| `screens/DashboardScreen.tsx:172,209` | `#1a2d44` | NOT A GROUND, but a token residual — a personnel chip and the "+N more" pill. **Lighter** than `colors.background`, so not a dark-ground defect; it is a raw hex with no palette sibling. Flagged, not swept: out of DP-4's scope, worth its own row if the owner wants zero orphan hexes. |
+
+**Fix** — Three one-line token swaps, and then make the guard able to see them:
+1. `WizardDrawer.tsx:358` → `colors.background`.
+2. `WizardDrawer.tsx:386` → `GLASS.gradientCard` + `GLASS.borderSoft` + lit top edge (drop `border: 'none'`).
+3. `AddressAutocomplete.tsx:187` → the elevated/card tier rather than the orphan hex.
+4. **Add `#0b1626` and `#101f33` to `RETIRED`** (`palette.test.ts:81`) with their replacements. That is the real fix: the existing sweep then enforces all three sites and any future one, mechanically, and no hand-written colour pin is needed. It also widens `RETIRED` from "hexes the phone retired" to "hexes this design system has replaced", which is what it needed to be for a demo-original value to be catchable at all.
+
+No existing test pins either hex (swept: zero hits under `features/demo/**/__tests__`), so the fix reddens nothing and the `RETIRED` addition is itself the RED.
+
+**Status (DP-4)** — INVESTIGATED
