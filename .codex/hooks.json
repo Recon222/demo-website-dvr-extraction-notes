@@ -1,0 +1,48 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash 'D:\\Work Coding Projects\\CCTV Recovery Notes App\\demo-website-dvr-extraction-notes\\demo-website-dvr-extraction-notes\\.codex\\hooks\\dt-git-guard.sh'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash 'D:\\Work Coding Projects\\CCTV Recovery Notes App\\demo-website-dvr-extraction-notes\\demo-website-dvr-extraction-notes\\.codex\\hooks\\dt-handoff-staleness.sh'"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash 'D:\\Work Coding Projects\\CCTV Recovery Notes App\\demo-website-dvr-extraction-notes\\demo-website-dvr-extraction-notes\\.codex\\hooks\\dt-session-continuity.sh'"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash 'D:\\Work Coding Projects\\CCTV Recovery Notes App\\demo-website-dvr-extraction-notes\\demo-website-dvr-extraction-notes\\.codex\\hooks\\dt-session-continuity.sh'"
+          }
+        ]
+      }
+    ]
+  }
+}
