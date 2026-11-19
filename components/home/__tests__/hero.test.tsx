@@ -19,13 +19,6 @@ describe('Hero (Case-File)', () => {
     ).toBeInTheDocument()
   })
 
-  it('renders the bench-credential eyebrow chip', () => {
-    render(<Hero />)
-    expect(
-      screen.getByText('BUILT ON EXPERIENCE — 15 YEARS · 1,500+ EXTRACTIONS'),
-    ).toBeInTheDocument()
-  })
-
   it('renders the gold beta CTA and the ghost demo CTA', () => {
     render(<Hero />)
     expect(screen.getByRole('link', { name: /Join the TestFlight beta/ })).toHaveAttribute(
@@ -48,12 +41,12 @@ describe('Hero (Case-File)', () => {
     expect(screen.queryByText(/PER-SCENE PAPERWORK/)).not.toBeInTheDocument()
   })
 
-  it('keeps the confirmed credentials, carried by the eyebrow chip alone', () => {
+  // The credential eyebrow chip was removed (owner decision). Pin the removal so it
+  // does not quietly come back.
+  it('renders no credential eyebrow chip above the H1', () => {
     render(<Hero />)
-    // Confirmed and publishable (PRODUCT.md §Evidence on Hand) — but stated ONCE.
-    expect(screen.getByText(/15 YEARS · 1,500\+ EXTRACTIONS/)).toBeInTheDocument()
-    expect(screen.queryByText('15 yrs')).not.toBeInTheDocument()
-    expect(screen.queryByText('1,500+')).not.toBeInTheDocument()
+    expect(screen.queryByText(/BUILT ON EXPERIENCE/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/1,500\+ EXTRACTIONS/)).not.toBeInTheDocument()
   })
 
   it('renders the hero phone with the live-capture label', () => {

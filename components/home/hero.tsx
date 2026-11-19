@@ -22,7 +22,10 @@ const BULLETS = [
 ] as const
 
 /**
- * Case-File split hero: credential chip, H1, sub + bullets, CTA row ⟷ bracketed phone.
+ * Case-File split hero: H1, sub + bullets, CTA row ⟷ bracketed phone.
+ *
+ * The credential eyebrow chip (BUILT ON EXPERIENCE — 15 YEARS · 1,500+ EXTRACTIONS)
+ * that used to open this column was removed (owner decision); the H1 now leads.
  *
  * The reserved narrative slot that used to close this column is gone: it was holding
  * the footprint of the removed credential strip for exactly this copy, and the copy
@@ -31,8 +34,7 @@ const BULLETS = [
  */
 export function Hero() {
   return (
-    // pt trimmed 84 → 48: with the tab strip gone the eyebrow chip already separates
-    // the hero from the header, and every pixel here pushes the phone below the fold.
+    // pt trimmed 84 → 48: every pixel here pushes the phone below the fold.
     //
     // The copy column is `lg:flex-1`, NOT a fixed max-width — same as the feature-page
     // header (components/feature-page.tsx). It used to be `max-w-[640px]` inside a
@@ -44,17 +46,6 @@ export function Hero() {
     // 65-75 character measure no matter how wide the window is.
     <section className="flex flex-col items-start gap-14 px-10 pb-[72px] pt-12 lg:flex-row lg:gap-16 lg:px-20">
       <div className="w-full lg:flex-1">
-        {/* credential eyebrow chip */}
-        <div className="mb-[26px] inline-flex items-center gap-[10px] rounded-[20px] border border-cyan/30 bg-cyan/5 px-[14px] py-[7px]">
-          <span
-            aria-hidden="true"
-            className="h-[7px] w-[7px] animate-[blinkDot_2.4s_ease-in-out_infinite] rounded-full bg-cyan shadow-[0_0_9px_rgba(78,205,196,0.9)]"
-          />
-          <span className="font-stmono text-[11px] tracking-[2px] text-cyan">
-            BUILT ON EXPERIENCE — 15 YEARS · 1,500+ EXTRACTIONS
-          </span>
-        </div>
-
         {/* One size, 56px (text-5xl). The lg:62px step was dropped to pull the bullets'
             last line above the fold — at two lines it was costing ~12px for no gain the
             eye registers. Still two lines: the tagline needs ~1,600px for one, and the
