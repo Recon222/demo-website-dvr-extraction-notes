@@ -20,12 +20,12 @@ export const siteConfig = {
   // fvadd.dev@gmail.com; the design canvas shows a contact@fva.dev placeholder.
   contactEmail: 'kcfva.dev@gmail.com',
   /** The four header links (Case-File design). The beta link is `cta`, not nav.
-   *  Features leads The job — mirrors the home page's section order after the
-   *  manifest was moved above the chain of work. */
+   *  Roadmap replaced "The job" (/#how-it-works) when the chain-of-work section
+   *  was removed from the home page and the roadmap got its own route. */
   nav: [
     { label: 'Features', href: '/#features' },
-    { label: 'The job', href: '/#how-it-works' },
     { label: 'Live demo', href: '/demo' },
+    { label: 'Roadmap', href: '/roadmap' },
     { label: 'Privacy', href: '/privacy' },
   ],
   /** The gold recruiting CTA — rendered as a button, kept out of the link list. */

@@ -1,3 +1,16 @@
+import type { Metadata } from 'next'
+
+import { siteConfig } from '@/lib/site-config'
+
+export const metadata: Metadata = {
+  title: `Roadmap — ${siteConfig.name}`,
+  description: `Where ${siteConfig.name} is headed after the beta: the pieces being built around the analyst app. No dates, no promises.`,
+}
+
+// STASH: this is the sealed roadmap section lifted off the home page as-is, so the
+// route exists while the page is redesigned from scratch. Only the heading moved
+// from h2 to h1, since it now heads its own page.
+//
 // Copy transcribed from the design canvas (artboard 3b). Deliberately muted —
 // the design reserves warm accents for shipping work; the roadmap gets none.
 const CARDS = [
@@ -15,8 +28,8 @@ const CARDS = [
   },
 ] as const
 
-/** The sealed roadmap section — dashed cards, NOT-IN-BETA tags, no dates, no promises. */
-export function RoadmapTease() {
+/** The sealed roadmap — dashed cards, NOT-IN-BETA tags, no dates, no promises. */
+export default function RoadmapPage() {
   return (
     <section className="px-10 pb-[72px] pt-16 lg:px-20">
       <div className="mb-[14px] flex items-baseline justify-between">
@@ -24,9 +37,9 @@ export function RoadmapTease() {
           <div className="mb-3 font-stmono text-[11px] tracking-[2.4px] text-faint">
             SEALED — OPENS AFTER THE BETA
           </div>
-          <h2 className="font-nacelle text-[38px] font-semibold tracking-[-0.8px] text-heading">
+          <h1 className="font-nacelle text-[38px] font-semibold tracking-[-0.8px] text-heading">
             Where this is headed
-          </h2>
+          </h1>
         </div>
         <div className="hidden font-jbmono text-xs text-faint md:block">NO DATES · NO PROMISES</div>
       </div>
